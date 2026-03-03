@@ -1,4 +1,16 @@
 {
+  "name": "index",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "author": {
+    "name": "Evileoo"
+  },
+  "scripts": {
+    "i": "node --env-file .env ./src/index.js",
+    "d": "node --env-file .env ./src/deploy-commands.js"
+  },
   "dependencies": {
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
