@@ -16,7 +16,7 @@ async function eventPanel(client) {
     
 
     // Create panel update routine
-    //const missionBoardUpdates = schedule.scheduleJob('* /1 * * * *', function() {
+    const missionBoardUpdates = schedule.scheduleJob('* /1 * * * *', async function() {
         // Get date
         const now = new Date();
 
@@ -48,7 +48,7 @@ async function eventPanel(client) {
         }
 
 
-    //});
+    });
 }
 
 
