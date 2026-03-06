@@ -4,8 +4,6 @@ import { Events } from 'discord.js';
 export const event = {
     name: Events.GuildMemberAdd,
     async execute(member){
-
-        console.log(member);
         
         const joinMessages = [
             `A new ninja has entered the village. Welcome <@${member.user.id}>`
