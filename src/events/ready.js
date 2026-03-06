@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import schedule from 'node-schedule';
+import { ingame } from '../functions/ingame.js';
 
 // Executed when bot is ready
 export const event = {
@@ -9,7 +10,7 @@ export const event = {
         // Bot is ready message
         console.log(`Ready! Logged in as ${client.user.tag}`);
 
-        // On change l'activité toutes les heures
+        // Bot activity
         schedule.scheduleJob("activity", '0 0 0-23 * * *', async function() {
 
             const activities = [
@@ -28,6 +29,7 @@ export const event = {
 
         client.user.setStatus("online");
 
-        // TODO boucle pour récupérer les datas des membres (faire une fonction)
+        // Load the ingame event panel
+        ingame.eventPanel(client);
     }
 }

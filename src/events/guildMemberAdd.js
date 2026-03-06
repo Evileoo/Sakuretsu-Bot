@@ -8,7 +8,7 @@ export const event = {
         console.log(member);
         
         const joinMessages = [
-            `A new ninja has entered the village. Welcome @<${member.user.id}>`
+            `A new ninja has entered the village. Welcome <@${member.user.id}>`
         ];
 
         const joinMessage = joinMessages[Math.floor(Math.random() * joinMessages.length)];
