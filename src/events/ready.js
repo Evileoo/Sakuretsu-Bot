@@ -19,7 +19,15 @@ export const event = {
                 "Saving Konoha",
                 "Spending my wage into the game",
                 "Spending all my nephies in the auction",
-                "Looking for the next event"
+                "Looking for the next event",
+                "Awakening Sasuke",
+                "Trying to learn mokuton",
+                "Waiting for Obito to be added to the game",
+                "Waiting for Might Guy to be added to the game",
+                "Waiting for Shisui to be added to the game",
+                "Feeding the beasts",
+                "Counting demon tails",
+                "Bidding as anonymous"
             ];
 
             const activity = Math.floor(Math.random() * activities.length);
