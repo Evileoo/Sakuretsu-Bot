@@ -8,7 +8,7 @@ const db = new Db({
     password: process.env.DBPWD,
     database: process.env.DBNAME,
     connectionLimit: 50,
-    skiptzfix: false
+    skiptzfix: true
 });
 
 export { db };
