@@ -4,13 +4,13 @@ import { managementLog } from '../functions/managementLog.js';
 
 export const command = {
     data: new SlashCommandBuilder()
-    .setName("ban")
-    .setDescription("Manage village bans")
+    .setName("warn")
+    .setDescription("Manage village warns")
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("add")
-        .setDescription("Add a member to ban")
+        .setDescription("Warn a member")
         .addStringOption( (option) =>
             option
             .setName("name")
@@ -23,28 +23,28 @@ export const command = {
             .setDescription("member ID")
             .setRequired(true)
         )
-        .addIntegerOption( (option) =>
-            option
-            .setName("rank")
-            .setDescription("Last known rank of the member to ban")
-            .setRequired(false)
-        )
     )
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("remove")
-        .setDescription("Remove a member ban")
+        .setDescription("Remove a defined number of warns")
         .addIntegerOption( (option) =>
             option
             .setName("id")
             .setDescription("member ID")
+            .setRequired(true)
+        )
+        .addIntegerOption( (option) =>
+            option
+            .setName("amount")
+            .setDescription("Number of warns")
             .setRequired(true)
         )
     )
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("edit")
-        .setDescription("Edit data of a banned member")
+        .setDescription("Edit data of a warned member")
         .addIntegerOption( (option) =>
             option
             .setName("id")
@@ -59,20 +59,20 @@ export const command = {
         )
         .addIntegerOption( (option) =>
             option
-            .setName("rank")
-            .setDescription("Server rank of the banned member")
+            .setName("amount")
+            .setDescription("Number of warns of the member")
             .setRequired(false)
         )
     )
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("list")
-        .setDescription("List of banned members")
+        .setDescription("List of warned members")
     )
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("check")
-        .setDescription("check if a member is banned")
+        .setDescription("check if a member received a warning")
         .addStringOption( (option) =>
             option
             .setName("name")
@@ -91,18 +91,18 @@ export const command = {
         // Get all command data
         const add = (interaction.options.getSubcommand() != "add") ? null : {
             name: (interaction.options.getString("name")) ? interaction.options.getString("name") : null,
-            id: (interaction.options.getInteger("id")) ? interaction.options.getInteger("id") : null,
-            rank: (interaction.options.getInteger("rank")) ? interaction.options.getInteger("rank") : null
+            id: (interaction.options.getInteger("id")) ? interaction.options.getInteger("id") : null
         }
 
         const remove = (interaction.options.getSubcommand() != "remove") ? null : {
-            id: (interaction.options.getInteger("id")) ? interaction.options.getInteger("id") : null
+            id: (interaction.options.getInteger("id")) ? interaction.options.getInteger("id") : null,
+            amount: (interaction.options.getInteger("amount")) ? interaction.options.getInteger("amount") : 1
         }
 
         const edit = (interaction.options.getSubcommand() != "edit") ? null : {
             id: (interaction.options.getInteger("id")) ? interaction.options.getInteger("id") : null,
             name: (interaction.options.getString("name")) ? interaction.options.getString("name") : null,
-            rank: (interaction.options.getInteger("rank")) ? interaction.options.getInteger("rank") : null
+            amount: (interaction.options.getInteger("amount")) ? interaction.options.getInteger("amount") : null
         }
 
         const check = (interaction.options.getSubcommand() != "check") ? null : {
@@ -113,67 +113,67 @@ export const command = {
 
         switch(interaction.options.getSubcommand()){
             case "add":
-                await addBan(add, interaction);
+                await addWarn(add, interaction);
 
                 await interaction.reply({
-                    content: "member banned",
+                    content: "member warned",
                     ephemeral: true
                 });
             break;
             case "remove":
-                await removeBan(remove, interaction);
+                await removeWarn(remove, interaction);
 
                 await interaction.reply({
-                    content: "member unbanned",
+                    content: "warn removed",
                     ephemeral: true
                 });
             break;
             case "edit":
-                await editBan(edit);
+                await editWarn(edit);
 
                 await interaction.reply({
-                    content: "member edited",
+                    content: "warn edited",
                     ephemeral: true
                 });
             break;
             case "list":
-                const banList = await listBans();
+                const warnList = await listWarns();
 
                 // Create discord embed
-                const bannedMembers = new EmbedBuilder()
-                .setTitle(`Banned members`)
+                const warnedMembers = new EmbedBuilder()
+                .setTitle(`Warned members`)
                 .setTimestamp()
 
                 let nameList = "";
-                let rankList = "";
+                let amountList = "";
                 let idList = "";
 
-                for(const ban of banList) {
-                    idList += (ban.member_id) ? `${ban.member_id}\n` : `-\n`;
-                    nameList += (ban.member_name) ? `${ban.member_name}\n` : `-\n`;
-                    rankList += (ban.member_rank) ? `${ban.member_rank}\n` : `-\n`;
+                for(const warn of warnList) {
+                    idList += (warn.member_id) ? `${warn.member_id}\n` : `-\n`;
+                    nameList += (warn.member_name) ? `${warn.member_name}\n` : `-\n`;
+                    amountList += (warn.amount) ? `${warn.amount}\n` : `-\n`;
                 }
 
-                bannedMembers.addFields({name: `ID`, value: `${idList}`, inline: true});
-                bannedMembers.addFields({name: `Name`, value: `${nameList}`, inline: true});
-                bannedMembers.addFields({name: `Rank`, value: `${rankList}`, inline: true});
+                warnedMembers.addFields({name: `ID`, value: `${idList}`, inline: true});
+                warnedMembers.addFields({name: `Name`, value: `${nameList}`, inline: true});
+                warnedMembers.addFields({name: `Amount`, value: `${amountList}`, inline: true});
 
                 await interaction.reply({
-                    embeds: [bannedMembers]
+                    embeds: [warnedMembers]
                 });
 
             break;
             case "check":
-                const member = await checkBan(check);
+                const member = await checkWarn(check);
 
                 if(member) {
                     await interaction.reply({
-                        content: `ID: ${member.member_id} \nName: ${member.member_name} \nRank: ${member.member_rank}\nThis member is banned`,
+                        content: `ID: ${member.member_id} \nName: ${member.member_name} \nNumber of warns: ${member.amount}\nLast warn date: ${member.date}`,
                         ephemeral: true
                     })
                 } else {
                     await interaction.reply({
-                        content: `Nobody with these parameters is banned`,
+                        content: `Nobody with these parameters has been warned`,
                         ephemeral: true
                     });
                 }
@@ -182,48 +182,65 @@ export const command = {
             break;
         }
 
-        async function addBan(data, interaction) {
-            console.log(data);
-            await db.insert('INSERT INTO bans (member_id, member_name, member_rank) VALUES (?, ?, ?)', [data.id, data.name, data.rank]);
+        async function addWarn(data, interaction) {
+        
+            const member = await checkWarn(data);
+
+            if(member) {
+                await db.insert('UPDATE warnings SET amount = ?, date = CURDATE() WHERE member_id = ?', [member.amount + 1, data.id]);
+            } else {
+                await db.insert('INSERT INTO warnings (member_id, member_name, amount, date) VALUES (?, ?, 1, CURDATE())', [data.id, data.name]);
+            }
+
+            console.log(interaction.user);
 
             const message = {
-                title: `New ban`,
+                title: `New warn`,
                 author: `${interaction.user.username}`,
                 color: 0xeb9a44,
-                description: `${data.name} (${data.id}) has been banned`
+                description: `${data.name} (${data.id}) received a warning`
             };
-            
+
+            await managementLog.sendMessage(message, interaction.client);
+
+        }
+
+        async function removeWarn(data, interaction) {
+
+            const member = await checkWarn(data);
+
+            if(member && (member.amount - data.amount) > 0) {
+                await db.insert('UPDATE warnings SET amount = ? WHERE member_id = ?', [member.amount - data.amount, data.id]);
+            } else {
+                await db.insert('DELETE FROM warnings WHERE member_id = ?', [data.id]);
+            }
+
+            const message = {
+                title: `Warn removed`,
+                author: `${interaction.user.username}`,
+                color: 0xeb9a44,
+                description: `${data.id} got a warn removed`
+            };
+
             await managementLog.sendMessage(message, interaction.client);
         }
 
-        async function removeBan(data, interaction) {
-            await db.delete('DELETE FROM bans WHERE member_id = ?', [data.id]);
-            const message = {
-                title: `Unban`,
-                author: `${interaction.user.username}`,
-                color: 0xeb9a44,
-                description: `${data.id} has been unbanned`
-            };
-            
-            await managementLog.sendMessage(message, interaction.client);
-        }
-
-        async function editBan(data) {
+        async function editWarn(data) {
             if(data.name != null) {
-                await db.update('UPDATE bans SET member_name = ? WHERE member_id = ?', [data.name, data.id]);
+                await db.update('UPDATE warnings SET member_name = ? WHERE member_id = ?', [data.name, data.id]);
             }
         
-            if(data.rank != null) {
-                await db.update('UPDATE bans SET member_rank = ? WHERE member_id = ?', [data.rank, data.id]);
+            if(data.amount != null) {
+                await db.update('UPDATE warnings SET amount = ? WHERE member_id = ?', [data.amount, data.id]);
             }
         }
 
-        async function listBans() {
-            return await db.getall('SELECT member_id, member_name, member_rank FROM bans ORDER BY member_rank');
+        async function listWarns() {
+            return await db.getall('SELECT member_id, member_name, amount FROM warnings ORDER BY date DESC');
         }
 
-        async function checkBan(data) {
-            return await db.getrow('SELECT member_id, member_name, member_rank FROM bans WHERE member_id = ? OR member_name = ?', [data.id, data.name]);
+        async function checkWarn(data) {
+            return await db.getrow('SELECT member_id, member_name, amount, date FROM warnings WHERE member_id = ? OR member_name = ?', [data.id, data.name]);
         }
     }
 }
