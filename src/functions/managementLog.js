@@ -1,7 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
 const guildId = "1478130301552033982";
-const logChannel = "1497965301462208592";
+const logChannel = "1498373561633738754";
 
 async function sendMessage(data, client) {
 

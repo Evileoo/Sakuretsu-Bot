@@ -52,7 +52,16 @@ export const event = {
 		} else if (interaction.isAutocomplete()) {
 
 			let autocomplete;
-			if(interaction.options._subcommand == 'example'){
+			if(interaction.commandName == 'status'){
+				autocomplete = interaction.client.autocompletes.get(`getMemberFromStatus`);
+			} else if(interaction.commandName == 'event') {
+				autocomplete = interaction.client.autocompletes.get(`getEventName`);
+			} else if(interaction.commandName == 'notebook') {
+				if(interaction.options._subcommand == "read") {
+					autocomplete = interaction.client.autocompletes.get(`getPublicNotebook`);
+				} else {
+					autocomplete = interaction.client.autocompletes.get(`getNotebookName`);
+				}
 			} else {
 				console.error(`No autocomplete matching ${interaction.commandName} / ${interaction.options._subcommand} was found.`);
 				return;
