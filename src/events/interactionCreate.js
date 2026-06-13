@@ -62,6 +62,18 @@ export const event = {
 				} else {
 					autocomplete = interaction.client.autocompletes.get(`getNotebookName`);
 				}
+			} else if(interaction.commandName == 'my') {
+				if(interaction.options._subcommand == "village") {
+					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
+				}
+			} else if(interaction.commandName == 'village') {
+				if(interaction.options._subcommand == "delete") {
+					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
+				}
+			} else if(interaction.commandName == 'translate') {
+				if(interaction.options._subcommand == "link") {
+					autocomplete = interaction.client.autocompletes.get(`getTranslateLinks`);
+				}
 			} else {
 				console.error(`No autocomplete matching ${interaction.commandName} / ${interaction.options._subcommand} was found.`);
 				return;

@@ -3,6 +3,7 @@ import schedule from 'node-schedule';
 import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
+import { translation } from '../functions/translation.js';
 
 // Executed when bot is ready
 export const event = {
@@ -58,5 +59,7 @@ export const event = {
         // Load name update routine
         nameUpdates.updateRoutine(client);
 
+        // Load translation links
+        translation.load();
     }
 }

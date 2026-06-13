@@ -1,5 +1,6 @@
 import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, LabelBuilder } from 'discord.js';
 import { db } from '../connections/database.js';
+import { globals } from '../globals.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -172,7 +173,7 @@ export const command = {
             const content = await db.getrow(`SELECT content FROM notebook WHERE id = ? AND name = ?`, [userId, name]);
 
             const modal = new ModalBuilder()
-            .setCustomId(`nbMod|||${name}`)
+            .setCustomId(`nbMod${globals.separator}${name}`)
             .setTitle(`${name}`)
 
             const input = new TextInputBuilder()
@@ -192,7 +193,7 @@ export const command = {
         }
 
         async function readNotebook(name, id, interaction) {
-            const data = name.split("|||");
+            const data = name.split(`${globals.separator}`);
             
             const content = await db.getrow(`SELECT content FROM notebook WHERE id = ? AND name = ?`, [data[1], data[0]]);
             if(!content) {

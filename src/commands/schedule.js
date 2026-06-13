@@ -38,34 +38,12 @@ export const command = {
     )
     .addSubcommand( (subcommand) =>
         subcommand
-        .setName("display")
-        .setDescription("Displays your schedule")
-    )
-    .addSubcommand( (subcommand) =>
-        subcommand
         .setName("of")
         .setDescription("Schedule of a member")
         .addUserOption( (option) =>
             option
             .setName("name")
             .setDescription("Discord name of the member")
-            .setRequired(true)
-        )
-    )
-    .addSubcommand( (subcommand) =>
-        subcommand
-        .setName("define")
-        .setDescription("Data required for the bot to work")
-        .addStringOption( (option) =>
-            option
-            .setName("timezone")
-            .setDescription("The timezone you're in. Format: +07 or -06")
-            .setRequired(true)
-        )
-        .addStringOption( (option) =>
-            option
-            .setName("name")
-            .setDescription("Your in game name (without the village tag)")
             .setRequired(true)
         )
     )
@@ -92,11 +70,6 @@ export const command = {
             step: (interaction.options.getString("step")) ? interaction.options.getString("step") : "1"
         };
 
-        const define = (interaction.options.getSubcommand() != "define") ? null : {
-            timezone: (interaction.options.getString("timezone")) ? interaction.options.getString("timezone") : "+00",
-            name: (interaction.options.getString("name")) ? interaction.options.getString("name") : null
-        };
-
         const edit = (interaction.options.getSubcommand() != "edit") ? null : {
             day: (interaction.options.getString("day")) ? interaction.options.getString("day") : null,
             hours: (interaction.options.getString("hours")) ? interaction.options.getString("hours") : null
@@ -118,24 +91,6 @@ export const command = {
 
                 await messageContent.sendMessage(messageData, interaction);
             break;
-            case "define":
-                error = await defineMemberData(define, interaction.user.id);
-
-
-                if(error) {
-                    await interaction.reply({
-                        content: `${error}`,
-                        flags: MessageFlags.Ephemeral
-                    });
-                } else {
-                    nameUpdates.updateName(interaction.user.id, interaction.guild);
-
-                    await interaction.reply({
-                        content: `Name and timezone updated successfully`,
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-            break;
             case "edit":
                 error = await editScheduleData(edit, interaction.user.id);
 
@@ -153,30 +108,11 @@ export const command = {
                     });
                 }
             break;
-            case "display":
-                await displaySchedule(interaction, interaction.user.id);
-            break;
             case "of":
                 await displaySchedule(interaction, of.user.id);
             break;
             default:
             break;
-        }
-
-        async function defineMemberData(data, id) {
-            // Check given data
-            if(data.timezone[0] != "+" && data.timezone[0] != "-") return "The timezone format must be + or - and a number between 0 and 12 written on 2 digits (ex: +01 / -10 / +11 / -04)";
-            if(data.timezone[1] != "0" && data.timezone[1] != "1") return "The timezone format must be + or - and a number between 0 and 12 written on 2 digits (ex: +01 / -10 / +11 / -04)";
-            if(isNaN(data.timezone[2])) return "The timezone format must be + or - and a number between 0 and 12 written on 2 digits (ex: +01 / -10 / +11 / -04)";
-
-            // Check database data
-            const existing = await db.getrow(`SELECT name, timezone FROM member WHERE id = ?`, [id]);
-
-            if(existing) { // Update
-                await db.update(`UPDATE member SET name = ?, timezone = ? WHERE id = ?`, [data.name, data.timezone, id]);
-            } else { // Insert
-                await db.insert(`INSERT INTO member (id, name, timezone) VALUES (?, ?, ?)`, [id, data.name, data.timezone]);
-            }
         }
 
         async function editScheduleData(data, id) {

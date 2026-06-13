@@ -1,6 +1,7 @@
 import { AttachmentBuilder, EmbedBuilder, SectionComponent } from 'discord.js';
 import schedule from 'node-schedule';
 import { db } from '../connections/database.js';
+import { globals } from '../globals.js';
 
 const guildId = "1478130301552033982";
 const eventChannel = "1485202060973576212";
@@ -34,8 +35,8 @@ async function missionBoard(client) {
         const timeBeforeStart = nextEventdate.getTime() - utcNow.getTime();
 
         // Get guild and channel objects
-        const guild = await client.guilds.fetch(guildId);
-        const channel = await guild.channels.cache.get(eventChannel);
+        const guild = await client.guilds.fetch(`${globals.server.id}`);
+        const channel = await guild.channels.cache.get(`${globals.server.channel.missionBoard}`);
 
         if(timeBeforeStart == 1 * 60 * 1000) { // 10 minutes before the event
             // Delete the panel
@@ -108,8 +109,8 @@ async function updateEvents(client) {
         }
     }
 
-    const guild = await client.guilds.fetch(guildId);
-    const channel = await guild.channels.cache.get(eventChannel);
+    const guild = await client.guilds.fetch(`${globals.server.id}`);
+    const channel = await guild.channels.cache.get(`${globals.server.channel.missionBoard}`);
 
     await editPanel(channel, "edit");
 }
@@ -233,4 +234,4 @@ async function editPanel(channel, action) {
     }
 }
 
-export const mb = { missionBoard, editPanel, guildId, eventChannel };
+export const mb = { missionBoard, editPanel };

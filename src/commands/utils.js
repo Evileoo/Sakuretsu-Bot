@@ -1,6 +1,5 @@
 import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { db } from '../connections/database.js';
-import { managementLog } from '../functions/managementLog.js';
 
 export const command = {
     data: new SlashCommandBuilder()

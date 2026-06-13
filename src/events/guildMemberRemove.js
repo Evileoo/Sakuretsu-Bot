@@ -14,7 +14,7 @@ export const event = {
         const leaveMessage = leaveMessages[Math.floor(Math.random() * joinMessages.length)];
 
         const guild = member.guild;
-        const channel = await guild.channels.fetch('1478130659326300355');
+        const channel = await guild.channels.fetch(`${globals.server.channel.flow}`);
         await channel.send(leaveMessage);
 
     }
