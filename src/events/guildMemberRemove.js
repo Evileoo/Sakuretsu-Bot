@@ -11,7 +11,7 @@ export const event = {
             `${name} has left the village`
         ];
 
-        const leaveMessage = leaveMessages[Math.floor(Math.random() * joinMessages.length)];
+        const leaveMessage = leaveMessages[Math.floor(Math.random() * leaveMessages.length)];
 
         const guild = member.guild;
         const channel = await guild.channels.fetch(`${globals.server.channel.flow}`);
