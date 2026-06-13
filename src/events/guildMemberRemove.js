@@ -1,4 +1,5 @@
 import { Events } from 'discord.js';
+import { globals } from '../globals.js';
 
 // Executed when bot is ready
 export const event = {
