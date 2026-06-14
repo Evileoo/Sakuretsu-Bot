@@ -38,7 +38,7 @@ async function missionBoard(client) {
         const guild = await client.guilds.fetch(`${globals.server.id}`);
         const channel = await guild.channels.cache.get(`${globals.server.channel.missionBoard}`);
 
-        if(timeBeforeStart == 1 * 60 * 1000) { // 10 minutes before the event
+        if(timeBeforeStart == 10 * 60 * 1000) { // 10 minutes before the event
             // Delete the panel
 
             await editPanel(channel, "delete");
@@ -53,7 +53,7 @@ async function missionBoard(client) {
             // Rewrite the panel
 
             await editPanel(channel, "create");
-        } else if(timeBeforeStart == 1 * 60 * 1000 * -1) { // when event started since 10 minutes
+        } else if(timeBeforeStart == 10 * 60 * 1000 * -1) { // when event started since 10 minutes
 
             for(const ce of checkEvent) {
                 if(ce.event_id != checkEvent[0].event_id) break;
