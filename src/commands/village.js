@@ -618,7 +618,6 @@ export const command = {
             }
             
             // Send flow message
-            const village = await db.getrow(`SELECT flow FROM village WHERE tag = ?`, [executor.village_tag]);
             const villageChannel = await interaction.guild.channels.cache.get(village.flow);
             
             villageChannel.send({
