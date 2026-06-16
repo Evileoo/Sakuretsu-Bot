@@ -569,6 +569,7 @@ export const command = {
             // Checks
             const target = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [data.member.id]);
             const executor = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+            const village = await db.getrow(`SELECT moderation FROM village WHERE tag = ?`, [executor.village_tag]);
             
             if(!target || !target.village_tag || target.village_tag != executor.village_tag) {
                 return await interaction.reply({
@@ -583,6 +584,9 @@ export const command = {
                 flags: MessageFlags.Ephemeral
             });
 
+            // Fetch moderation channel
+            const moderation = await interaction.guild.channels.cache.get(village.moderation);
+
             // Prepare embed
             const flowEmbed = new EmbedBuilder()
             .setTimestamp();
@@ -592,12 +596,20 @@ export const command = {
             if(member.roles.cache.has(globals.server.role.sub)) {
                 member.roles.remove(globals.server.role.sub);
 
+                moderation.permissionOverwrites.edit(data.member.id, {
+                    ViewChannel: false
+                });
+
                 flowEmbed
                 .setTitle(`A member has been demoted`)
                 .setDescription(`<@${data.member.id}> lost his/her sub kage position`)
                 .setColor(globals.embed.red);
             } else {
                 member.roles.add(globals.server.role.sub);
+
+                moderation.permissionOverwrites.edit(data.member.id, {
+                    ViewChannel: true
+                });
 
                 flowEmbed
                 .setTitle(`A member has been promoted`)
