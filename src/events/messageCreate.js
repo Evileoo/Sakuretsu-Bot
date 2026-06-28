@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { globals } from '../globals.js';
 import { translation } from '../functions/translation.js';
+import { manageEmojis } from '../functions/emojis.js';
 
 // Executed when bot is ready
 export const event = {

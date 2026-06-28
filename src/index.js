@@ -3,21 +3,9 @@ import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import fs from 'fs';
 import { deploy } from './deploy-commands.js';
 import dotenv from 'dotenv';
+import { client } from "./client.js";
 
 dotenv.config();
-
-// Create client instance
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessages
-    ]
-});
 
 // Create commands collection
 client.commands = new Collection();

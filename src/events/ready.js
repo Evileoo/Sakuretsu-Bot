@@ -4,6 +4,7 @@ import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
 import { translation } from '../functions/translation.js';
+import { manageEmojis } from '../functions/emojis.js';
 
 // Executed when bot is ready
 export const event = {
@@ -61,5 +62,8 @@ export const event = {
 
         // Load translation links
         translation.load();
+
+        //Load emojis
+        manageEmojis.getBotEmojis(client);
     }
 }
