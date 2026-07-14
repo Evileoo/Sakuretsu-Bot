@@ -129,7 +129,7 @@ export const command = {
             option
             .setName("reason")
             .setDescription("Ban reason")
-            .setRequired(false)
+            .setRequired(true)
         )
     )
     .addSubcommand( (subcommand) =>
@@ -146,8 +146,8 @@ export const command = {
         .addStringOption( (option) =>
             option
             .setName("reason")
-            .setDescription("Ban reason")
-            .setRequired(false)
+            .setDescription("Unban reason")
+            .setRequired(true)
         )
     )
     .addSubcommand( (subcommand) =>
