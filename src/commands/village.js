@@ -170,7 +170,7 @@ export const command = {
             option
             .setName("reason")
             .setDescription("Warn reason")
-            .setRequired(false)
+            .setRequired(true)
         )
     )
     .addSubcommand( (subcommand) =>

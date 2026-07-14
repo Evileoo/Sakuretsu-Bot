@@ -29,7 +29,7 @@ export const button = {
             
             if(!member) {
                 return await interaction.reply({
-                    content: `You must set your in-game name with the command \`my name\` (if you have your village tag in your ingame name, don't put it here)`,
+                    content: `You must set your in-game name with the command \`/my name\`.\nInstructions:\ntype \`/name\`\nSelect the "my name" from the list\nType your in game name\nsend.\n\nOnce done click on the button again.`,
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -49,6 +49,9 @@ export const button = {
                     });
                 }
             }
+
+            await interaction.deferUpdate();
+
             // Remove lone role
             const lone = await interaction.guild.roles.cache.get(globals.server.role.lone);
             await interaction.member.roles.remove(lone);

@@ -90,7 +90,7 @@ async function check(emoji) {
 }
 
 // Add the emoji to the bot emojis and the array
-async function addEmoji(emoji) {
+async function addEmoji(client, emoji) {
     const uploaded = await client.application.emojis.create({
         name: emoji.name.slice(0, 32),
         attachment: emoji.url
@@ -110,7 +110,7 @@ async function addEmoji(emoji) {
 }
 
 // Delete the emoji from the bot and array
-async function removeEmoji(emoji) {
+async function removeEmoji(client, emoji) {
     const index = emojis.findIndex(e => e.id === emoji.id);
 
     if (index === -1) return false;

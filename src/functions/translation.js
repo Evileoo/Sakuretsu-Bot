@@ -53,30 +53,35 @@ async function messageTranslate(message) {
 
     for (const embed of message.embeds) {
 
-        // Image preview (Tenor, Giphy, etc.)
-        if (embed.image?.url) {
-            files.push(embed.image.url);
-            continue;
-        }
+    const provider = embed.provider?.name?.toLowerCase();
 
-        // Video preview
-        if (embed.video?.url) {
-            files.push(embed.video.url);
-            continue;
-        }
+    let media = null;
 
-        // GIF preview
-        if (embed.type === "gifv") {
-            if (embed.video?.url) {
-                files.push(embed.video.url);
-            } else if (embed.thumbnail?.url) {
-                files.push(embed.thumbnail.url);
-            }
-            continue;
-        }
+    // Tenor / Giphy
+    if (provider === "tenor" || provider === "giphy") {
+    //    media = embed.video?.url ?? embed.image?.url ?? embed.thumbnail?.url;
+    }
 
-        // Preserve other embeds (YouTube, Twitter, rich embeds...)
-        embeds.push(embed);
+    // Discord CDN
+    else if (
+        embed.video?.url?.includes("discordapp.net") ||
+        embed.video?.url?.includes("discordapp.com") ||
+        embed.image?.url?.includes("discordapp.net") ||
+        embed.image?.url?.includes("discordapp.com")
+    ) {
+        media = embed.video?.url ?? embed.image?.url;
+    }
+
+    if (media) {
+        files.push(media);
+        continue;
+    } else {
+
+    embeds.push(embed);
+    }
+
+    // On conserve les autres embeds (YouTube, Twitter...)
+    
     }
 
     for(const channel of channels) {
@@ -106,7 +111,7 @@ async function messageTranslate(message) {
                     message.author.globalName ??
                     message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
-                embeds,
+                embeds: embeds,
                 files,
                 allowedMentions: {
                     parse: []
