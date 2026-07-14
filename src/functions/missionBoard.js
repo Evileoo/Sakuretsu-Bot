@@ -3,9 +3,6 @@ import schedule from 'node-schedule';
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
 
-const guildId = "1478130301552033982";
-const eventChannel = "1485202060973576212";
-
 async function missionBoard(client) {
 
     // Update old events

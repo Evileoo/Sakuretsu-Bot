@@ -1,8 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
-import fs from 'fs';
+import fs, { glob } from 'fs';
 import https from 'https';
+import { globals } from '../globals.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -81,8 +82,8 @@ export const command = {
         };
 
         // Get guild and channel objects
-        const guild = await interaction.client.guilds.fetch(mb.guildId);
-        const channel = await guild.channels.cache.get(mb.eventChannel);
+        const guild = await interaction.client.guilds.cache.get(globals.server.id);
+        const channel = await guild.channels.cache.get(globals.server.channel.missionBoard);
 
         switch(interaction.options.getSubcommand()){
             case "add":
