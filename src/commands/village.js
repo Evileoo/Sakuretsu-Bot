@@ -809,7 +809,7 @@ export const command = {
             .setTitle(`${action == "unban" ? `Unban` : `New ${action}`}`)
             .setTimestamp()
             .setColor(globals.embed.orange)
-            .setAuthor({name: `${interaction.member.nickname ? interaction.user.nickname : interaction.user.globalName}`});
+            .setAuthor({name: `${interaction.member.displayName ?? interaction.user.username}`}); 
 
             let description = "";
             if(action == "unban") {
