@@ -14,7 +14,9 @@ export const globals = {
             missionBoard: `1478133200109965497`,
             annoucements: `1481027774465708216`,
             general: `1478130580712460480`,
-            villages: `1504080991273091143`
+            villages: `1504080991273091143`,
+            bloodClash: `1528779829686702250`,
+            bcHelp: `1530881093593464902`
         },
         role: {
             mod: `1483148976101396480`,
@@ -26,6 +28,7 @@ export const globals = {
             pingArena: `1479552402863558727`,
             pingAuction: `1478135570696769638`,
             pingNinjaWar: `1478135456393597008`,
+            bcHelper: `1528780090597707887`
         },
         member: {
             fill: ``
