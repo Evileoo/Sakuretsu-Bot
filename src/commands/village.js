@@ -195,6 +195,17 @@ export const command = {
             )
         )
     )
+    .addSubcommand( (subcommand) =>
+        subcommand
+        .setName("kick")
+        .setDescription("kick out someone of the village")
+        .addUserOption( (option) =>
+            option
+            .setName("member")
+            .setDescription("Member to kick out of the village")
+            .setRequired(true)
+        )
+    )
     , async execute(interaction){
 
         // Get all command data
@@ -243,6 +254,9 @@ export const command = {
             case "sanctions":
                 statusList(data, interaction);
             break;
+            case "kick":
+                statusList(data, interaction);
+            break;
             default:
             break;
         }
@@ -258,10 +272,8 @@ export const command = {
 
             const accountCreated = await db.getrow(`SELECT name FROM member WHERE id = ?`, [data.kage.id]);
             if(!accountCreated) {
-                return await interaction.reply({
-                    content: `<@${data.kage.id}> hasn't registered his name yet. Ask him/her to execute the command \`/my name\``,
-                    flags: MessageFlags.Ephemeral
-                });
+                const member = await interaction.guild.members.cache.get(data.kage.id);
+                await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [data.kage.id, member.displayName ?? data.kage.username]);
             }
 
             const inVillage = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [data.kage.id]);
@@ -620,7 +632,7 @@ export const command = {
             // Send flow message
             const villageChannel = await interaction.guild.channels.cache.get(village.flow);
             
-            villageChannel.send({
+            await villageChannel.send({
                 embeds: [flowEmbed]
             });
         }
@@ -784,7 +796,7 @@ export const command = {
             }
 
             await interaction.reply({
-                content: `member ${action}ed`,
+                content: `member ${action == "ban" ? "bann" : "warn"}ed`,
                 flags: MessageFlags.Ephemeral
             });
 
@@ -834,7 +846,8 @@ export const command = {
             });
 
             // Remove the member from village if he's in the discord server
-            if(target) {
+            if(target && action == "ban") {
+                await db.update(`UPDATE member SET village_tag = NULL WHERE id = ?`, [data.member.id]);
                 await interaction.guild.members.cache.get(target.id).roles.remove(village.role_id);
             }
         }
@@ -852,6 +865,47 @@ export const command = {
             });
 
             await lists.statusList(interaction, -1, "n", data.type, data.id, message.id);
+        }
+
+        async function kick(data, interaction) {
+            const village = await db.getrow(`SELECT flow, moderation, flow_warn, flow_ban, role_id, tag FROM village WHERE tag = ?`, [executor.village_tag]);
+            const target = await db.getrow(`SELECT id, name, village_tag FROM member WHERE name = ?`, [data.name]);
+
+            // Check if member is in the village
+            if(target && target.village_tag != executor.village_tag) {
+                return await interaction.reply({
+                    content: `This member is not in the village`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // Confirmation message
+            await interaction.reply({
+                content: `member kicked`,
+                flags: MessageFlags.Ephemeral
+            });
+
+            const embed = new EmbedBuilder()
+            .setTitle(`Kick`)
+            .setTimestamp()
+            .setColor(globals.embed.orange)
+            .setAuthor({name: `${interaction.member.displayName ?? interaction.user.username}`})
+            .setDescription(`${target.name} has been kicked out`);
+
+            // Send message
+            let channel;
+            if(village.flow_ban == 0) {
+                channel = interaction.guild.channels.cache.get(village.flow);
+            } else {
+                channel = interaction.guild.channels.cache.get(village.moderation);
+            }
+
+            channel.send({
+                embeds: [embed]
+            });
+
+            await db.update(`UPDATE member SET village_tag = NULL WHERE id = ?`, [data.member.id]);
+            await interaction.guild.members.cache.get(target.id).roles.remove(village.role_id);
         }
     }
 }

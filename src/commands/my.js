@@ -31,6 +31,17 @@ export const command = {
     )
     .addSubcommand( (subcommand) =>
         subcommand
+        .setName("id")
+        .setDescription("Give your ingame ID")
+        .addStringOption( (option) =>
+            option
+            .setName("value")
+            .setDescription("in game ID")
+            .setRequired(true)
+        )
+    )
+    .addSubcommand( (subcommand) =>
+        subcommand
         .setName("notebooks")
         .setDescription("Get a list of your notebooks")
     )
@@ -59,6 +70,9 @@ export const command = {
             break;
             case "schedule":
                 await getSchedule(interaction);
+            break;
+            case "id":
+                await id(command, interaction);
             break;
             default:
             break;
@@ -268,6 +282,21 @@ export const command = {
 
             await interaction.reply({
                 embeds: [scheduleEmbed],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        async function id(command, interaction) {
+            const member = await db.getrow(`SELECT ig_id FROM member WHERE id = ?`, [interaction.user.id]);
+
+            if(!member) {
+                await db.insert(`INSERT INTO member (id, ig_id) VALUES (?, ?)`, [interaction.user.id, command.value]);
+            } else {
+                await db.update(`UPDATE member SET ig_id = ? WHERE id = ?`, [command.value, interaction.user.id]);
+            }
+
+            await interaction.reply({
+                content: `Your ID has been saved`,
                 flags: MessageFlags.Ephemeral
             });
         }

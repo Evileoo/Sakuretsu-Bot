@@ -28,10 +28,7 @@ export const button = {
             const member = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
             
             if(!member) {
-                return await interaction.reply({
-                    content: `You must set your in-game name with the command \`/my name\`.\nInstructions:\ntype \`/name\`\nSelect the "my name" from the list\nType your in game name\nsend.\n\nOnce done click on the button again.`,
-                    flags: MessageFlags.Ephemeral
-                });
+                await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [interaction.user.id, interaction.member.displayName ?? interaction.user.username]);
             }
 
             if(member.village_tag) {
