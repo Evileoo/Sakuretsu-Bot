@@ -206,6 +206,23 @@ export const command = {
             .setRequired(true)
         )
     )
+    .addSubcommand( (subcommand) =>
+        subcommand
+        .setName("member-name")
+        .setDescription("rename a member from the village")
+        .addUserOption( (option) =>
+            option
+            .setName("member")
+            .setDescription("Member to rename")
+            .setRequired(true)
+        )
+        .addStringOption( (option) =>
+            option
+            .setName("name")
+            .setDescription("member new name")
+            .setRequired(true)
+        )
+    )
     , async execute(interaction){
 
         // Get all command data
@@ -256,6 +273,9 @@ export const command = {
             break;
             case "kick":
                 kick(data, interaction);
+            break;
+            case "member-name":
+                renameMember(data, interaction);
             break;
             default:
             break;
@@ -868,8 +888,9 @@ export const command = {
         }
 
         async function kick(data, interaction) {
+            const executor = await db.getrow(`SELECT id, name, village_tag FROM member WHERE id = ?`, [interaction.user.id]);
             const village = await db.getrow(`SELECT flow, moderation, flow_warn, flow_ban, role_id, tag FROM village WHERE tag = ?`, [executor.village_tag]);
-            const target = await db.getrow(`SELECT id, name, village_tag FROM member WHERE name = ?`, [data.name]);
+            const target = await db.getrow(`SELECT id, name, village_tag FROM member WHERE id = ?`, [data.member.id]);
 
             // Check if member is in the village
             if(target && target.village_tag != executor.village_tag) {
@@ -906,6 +927,26 @@ export const command = {
 
             await db.update(`UPDATE member SET village_tag = NULL WHERE id = ?`, [data.member.id]);
             await interaction.guild.members.cache.get(target.id).roles.remove(village.role_id);
+        }
+
+        async function renameMember(data, interaction) {
+            const executor = await db.getrow(`SELECT id, name, village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+            const target = await db.getrow(`SELECT id, name, village_tag FROM member WHERE id = ?`, [data.member.id]);
+
+            // Check if member is in the village
+            if(target && target.village_tag != executor.village_tag) {
+                return await interaction.reply({
+                    content: `This member is not in the village`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            await db.update(`UPDATE member SET name = ? WHERE id = ?`, [data.name, target.id]);
+
+            await interaction.reply({
+                content: `name changed, it will update soon`,
+                flags: MessageFlags.Ephemeral
+            });
         }
     }
 }
