@@ -255,7 +255,7 @@ export const command = {
                 statusList(data, interaction);
             break;
             case "kick":
-                statusList(data, interaction);
+                kick(data, interaction);
             break;
             default:
             break;
