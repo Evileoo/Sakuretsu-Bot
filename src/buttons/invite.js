@@ -31,7 +31,7 @@ export const button = {
                 await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [interaction.user.id, interaction.member.displayName ?? interaction.user.username]);
             }
 
-            if(member.village_tag) {
+            if(member && member.village_tag) {
                 message.delete();
 
                 if(member.village_tag == "    ") {
