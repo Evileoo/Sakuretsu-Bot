@@ -1,0 +1,16 @@
+# discord js events for translations
+- channelCreate
+- channelDelete
+- channelPinsUpdate
+- channelUpdate
+- guildMemberAdd
+- guildMemberRemove
+- messageCreate
+- messageDelete
+- messageDeleteBulk
+- messageReactionAdd
+- messageReactionRemove
+- messageUpdate
+- threadCreate
+- threadDelete
+- threadUpdate

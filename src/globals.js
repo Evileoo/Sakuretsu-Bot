@@ -28,7 +28,8 @@ export const globals = {
             pingArena: `1479552402863558727`,
             pingAuction: `1478135570696769638`,
             pingNinjaWar: `1478135456393597008`,
-            bcHelper: `1528780090597707887`
+            bcHelper: `1528780090597707887`,
+            restriction: `1531008532412104954`
         },
         member: {
             fill: ``

@@ -2,6 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags, C
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
 import { lists } from '../functions/lists.js';
+import { bloodclash } from '../functions/bloodclash.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -223,6 +224,11 @@ export const command = {
             .setRequired(true)
         )
     )
+    .addSubcommand( (subcommand) =>
+        subcommand
+        .setName("cluster")
+        .setDescription("Define in which Blood Clash cluster you are in")
+    )
     , async execute(interaction){
 
         // Get all command data
@@ -276,6 +282,9 @@ export const command = {
             break;
             case "member-name":
                 renameMember(data, interaction);
+            break;
+            case "cluster":
+                bloodclash.cluster(interaction, 1, true);
             break;
             default:
             break;

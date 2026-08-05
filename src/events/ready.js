@@ -39,12 +39,14 @@ export const event = {
                 "Looking for the next event",
                 "Awakening Sasuke",
                 "Trying to learn mokuton",
-                "Waiting for Obito to be added to the game",
                 "Waiting for Might Guy to be added to the game",
                 "Waiting for Shisui to be added to the game",
                 "Feeding the beasts",
                 "Counting demon tails",
-                "Bidding as anonymous"
+                "Bidding as anonymous",
+                "Waiting for tri-army clash",
+                "Kicking AFK members from the village",
+                "Cheering Leo for his work"
             ];
 
             const activity = Math.floor(Math.random() * activities.length);
