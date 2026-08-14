@@ -619,6 +619,14 @@ export const command = {
                 });
             }
 
+            // Check if targeted member is subkage or kage
+            if(!interaction.member.roles.cache.has(globals.server.role.kage)) {
+                return await interaction.reply({
+                    content: `You must be Kage to promote or demote members`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             // Reply to interaction before it breaks
             await interaction.reply({
                 content: `Promotion/Demotion successful`,
@@ -820,6 +828,15 @@ export const command = {
             if(target && target.village_tag != executor.village_tag) {
                 return await interaction.reply({
                     content: `This member is not in the village`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // Check if targeted member is subkage or kage
+            const tagerDsc = await interaction.members.cache.get(target.id);
+            if(tagerDsc.roles.cache.has(globals.server.role.sub) && action == "ban") {
+                return await interaction.reply({
+                    content: `You can't ban a subkage or kage`,
                     flags: MessageFlags.Ephemeral
                 });
             }
