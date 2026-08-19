@@ -4,7 +4,7 @@ import { globals } from '../globals.js';
 
 // Check if a help request is sent, and in the good channel
 async function detector(message) {
-    const content = message.content;
+    const content = message.content.toLowerCase();
     const channel = message.channel;
 
     if(message.author.bot) {
@@ -30,8 +30,8 @@ async function detector(message) {
         // User mention test
         const pinger = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [message.author.id]);
         
-        for(const mention of message.mentions.users) {
-            const pinged = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [mention[0]]);
+        for(const [pingedId, user] of message.mentions.users) {
+            const pinged = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [pingedId]);
 
             if(pinger?.village_tag != pinged?.village_tag) {
                 await channel.send({
@@ -98,7 +98,7 @@ async function spamManagement(message) {
 async function helpRequest(message) {
 
     // Check syntax
-    const splitted = message.content.split(" ");
+    const splitted = message.content.toLowerCase().split(" ");
 
     if(splitted.length != 4 || splitted[0] != "help" || splitted[1] != "bc" || splitted[2] != "floor" || isNaN(splitted[3])) {
         return await message.channel.send({
@@ -109,7 +109,12 @@ async function helpRequest(message) {
     const member = message.guild.members.cache.get(message.author.id);
 
     // Insert into database
-    const memberData = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
+    let memberData = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
+    if(!memberData) {
+        await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [message.author.id, message.author.username]);
+        memberData = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
+    }
+
     const insertedId = await db.insert(`INSERT INTO bc (r_id, r_ig_id, floor, tms, state, is_spam) VALUES (?, ?, ?, NOW(), 0, 0)`, [message.author.id, memberData?.ig_id, parseInt(splitted[3])]);
 
     // Create and send the message

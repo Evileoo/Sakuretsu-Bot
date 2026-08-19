@@ -4,6 +4,7 @@ import fs from 'fs';
 import { deploy } from './deploy-commands.js';
 import dotenv from 'dotenv';
 import { client } from "./client.js";
+import { exec } from 'child_process';
 
 dotenv.config();
 
@@ -109,3 +110,33 @@ client.on('reconnecting', () => {
 
 // Login
 await client.login(process.env.TOKEN);
+
+// DÉMARRAGE AUTOMATIQUE DE LIBRETRANSLATE
+// On utilise exec pour lancer la commande dans votre environnement (ex: venv Python ou installation globale)
+// Remplacez 'libretranslate' par le chemin exact de votre exécutable ou commande si vous utilisez un environnement virtuel (ex: './venv/Scripts/libretranslate')
+const libreTranslateProcess = exec('libretranslate --port 5000', (error, stdout, stderr) => {
+    if (error) {
+        console.error(`[LibreTranslate] Erreur lors du lancement de l'instance:`, error);
+        return;
+    }
+});
+
+// Redirection des logs de LibreTranslate vers votre console de développement pour le débogage
+libreTranslateProcess.stdout.on('data', (data) => {
+    // Optionnel : filtre pour éviter de surcharger votre console une fois qu'il est prêt
+    console.log(`[LibreTranslate] ${data.trim()}`);
+});
+
+libreTranslateProcess.stderr.on('data', (data) => {
+    // LibreTranslate envoie souvent ses logs d'initialisation (Uvicorn, serveurs) dans stderr, ce ne sont pas forcément des crashs
+    console.warn(`[LibreTranslate Log] ${data.trim()}`);
+});
+
+// Sécurité : S'assurer que le processus LibreTranslate est proprement coupé si le bot Node.js s'arrête
+process.on('exit', () => {
+    libreTranslateProcess.kill();
+});
+process.on('SIGINT', () => {
+    libreTranslateProcess.kill();
+    process.exit(0);
+});

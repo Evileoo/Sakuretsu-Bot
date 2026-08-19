@@ -9,12 +9,12 @@ export const event = {
     name: Events.MessageCreate,
     async execute(message){
         // Detect if blood clash help + treatment
-        await bloodclash.detector(message);
+        //await bloodclash.detector(message);
 
         // Detect if it's a blood clash lobby end message + treatment
-        await bloodclash.endLobby(message);
+        //await bloodclash.endLobby(message);
 
         // Translate the message if required
-        //await translation.messageTranslate(message);
+        await translation.messageManage(message, "send");
     }
 }

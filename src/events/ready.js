@@ -36,17 +36,19 @@ export const event = {
                 "Saving Konoha",
                 "Spending my wage into the game",
                 "Spending all my nephies in the auction",
-                "Looking for the next event",
+                "Waiting for the next event",
                 "Awakening Sasuke",
                 "Trying to learn mokuton",
-                "Waiting for Might Guy to be added to the game",
-                "Waiting for Shisui to be added to the game",
                 "Feeding the beasts",
                 "Counting demon tails",
                 "Bidding as anonymous",
                 "Waiting for tri-army clash",
-                "Kicking AFK members from the village",
-                "Cheering Leo for his work"
+                "Kicking inactive members from the village",
+                "Cheering Leo for his work",
+                "HELP BC HELP BC HELP BC",
+                "WHEN IS JOLLY GACHA ?",
+                "Sending flowers to Evileoo",
+                "Looking for a T10 ninja tool"
             ];
 
             const activity = Math.floor(Math.random() * activities.length);
@@ -60,7 +62,7 @@ export const event = {
         //mb.missionBoard(client);
 
         // Load name update routine
-        nameUpdates.updateRoutine(client);
+        //nameUpdates.updateRoutine(client);
 
         // Load translation links
         translation.load();
