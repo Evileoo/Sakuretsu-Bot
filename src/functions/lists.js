@@ -37,7 +37,6 @@ async function notebookList(interaction, page, action) {
 
     const start = page * linesByPage;
     const limit = start + linesByPage;
-    console.log(start, limit)
     for(let i = start; i < limit; i++) {
         name += `${getList[i].name}\n`;
         visibility += `${(visibility == 0) ? "Public" : "Private"}\n`;
