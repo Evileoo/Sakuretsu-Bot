@@ -181,9 +181,9 @@ export const command = {
                 const start = row.period.split(" ")[0];
                 const end = row.period.split(" ")[1];
 
-                const startHour = parseInt(start.split(":")[0]) - offset;
+                const startHour = parseInt(start.split(":")[0]) - member.timezone;
                 const startMinute = parseInt(start.split(":")[1]);
-                const endHour = parseInt(end.split(":")[0]) - offset;
+                const endHour = parseInt(end.split(":")[0]) - member.timezone;
                 const endMinute = parseInt(end.split(":")[1]);
 
                 const utcStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), startHour, startMinute, 0));
