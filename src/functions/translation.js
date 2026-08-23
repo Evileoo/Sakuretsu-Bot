@@ -3,6 +3,7 @@ import { db } from '../connections/database.js';
 import { client } from '../client.js';
 import { manageEmojis } from './emojis.js';
 import { lt } from '../connections/libretranslate.js';
+import { globals } from '../globals.js';
 
 let tr = [];
 
@@ -399,14 +400,16 @@ async function distributeMessages(message, action, processedContent, sourceLng, 
 
 
 
-async function send(message, content, channelId, action, type, msgId, dynamicMainMsgId, targetReplyMsgId, sourceLng, targetLng, originalAuthorId, parentContent, targetThreadId = null) {
-    // 1. Récupération de la configuration brute
+async function send(message, content, channelId, action, type, msgId, dynamicMainMsgId, targetReplyMsgId, sourceLng, targetLng, originalAuthorId, parentContent, targetThreadId) {
+    const channel = await message.guild.channels.cache.get(channelId);
+    
     const config = tr.find(r => (type === "main" ? r.main_id : r.scd_id) === channelId);
     const webhookUrl = type === "main" ? config?.main_webhook_url : config?.scd_webhook_url;
 
     if (!webhookUrl) return null;
 
     const webhookClient = new WebhookClient({ url: webhookUrl });
+    
     let finalContent = content ?? "";
 
     if (action === "send" && targetReplyMsgId) {
@@ -430,11 +433,38 @@ async function send(message, content, channelId, action, type, msgId, dynamicMai
                 : truncated;
         }
 
-        // CORRECTION : Sécurisation de la déclaration de contentQuote pour éviter le ReferenceError
-        const contentQuote = textPreview ? ` : *[${textPreview}](${replyLink})*` : "";
-        finalContent = `↳ *[${translatedReplyText}](${replyLink})* ${authorMention}${contentQuote}\n${finalContent}`;
+        const contentQuote = textPreview ? ` : *[ ${textPreview} ](${replyLink})*` : "";
+        finalContent = `-# ↳ * [ ${translatedReplyText} ](${replyLink}) * ${authorMention}${contentQuote}\n${finalContent}`;
     }
 
+    if (action === "send" && (!finalContent || finalContent.trim().length === 0)) {
+        
+        // Cas 1 : L'utilisateur a envoyé un Autocollant (Sticker)
+        if (message.stickers?.size > 0) {
+            const stickerName = message.stickers.first()?.name ?? "";
+            const baseText = `a envoyé un autocollant : ${stickerName}`;
+            const translatedText = (sourceLng && targetLng) ? await translator(baseText, sourceLng, targetLng) : baseText;
+            finalContent = `*${message.author.username} ${translatedText}*`;
+        }
+        
+        // Cas 2 : L'utilisateur a envoyé un Message Vocal (Voice Message)
+        // Les vocaux sont des fichiers joints possédant le flag 'is_voice_message' dans leurs attributs Discord
+        else if (message.attachments?.some(a => a.flags?.has('is_voice_message') || a.waveform)) {
+            const baseText = "a envoyé un message vocal 🎤";
+            const translatedText = (sourceLng && targetLng) ? await translator(baseText, sourceLng, targetLng) : baseText;
+            finalContent = `*${message.author.username} ${translatedText}*`;
+        }
+        
+        // Cas 3 : L'utilisateur a créé un Sondage (Poll)
+        else if (message.poll) {
+            const pollQuestion = message.poll.question?.text ?? "";
+            const baseText = `a créé un sondage : ${pollQuestion}`;
+            const translatedText = (sourceLng && targetLng) ? await translator(baseText, sourceLng, targetLng) : baseText;
+            finalContent = `*${message.author.username} ${translatedText}*`;
+        }
+    }
+
+    // Gestion de la charge utile des mentions
     const allowedMentionsPayload = {};
     if (originalAuthorId) {
         allowedMentionsPayload.users = [originalAuthorId];
@@ -443,18 +473,27 @@ async function send(message, content, channelId, action, type, msgId, dynamicMai
     }
 
     const webhookPayload = {
-        content: finalContent || undefined, 
+        content: finalContent.trim() || undefined, 
         username: message.member?.displayName ?? message.author.globalName ?? message.author.username,
         avatarURL: message.author.displayAvatarURL(),
-        embeds: message.embeds,
-        files: message.files,
+        embeds: message.embeds || [],
+        files: message.files || [],
         allowedMentions: allowedMentionsPayload
     };
 
-    // 2. CORRECTION ROUTAGE THREAD : L'option pour discord.js v14 lors de l'appel .send() 
-    // doit être passée dans l'objet de payload sous la propriété 'threadId'
     if (targetThreadId) {
         webhookPayload.threadId = targetThreadId;
+    }
+
+    // Sécurité de secours ultime si un autre type de message non géré apparaît
+    const hasContent = typeof webhookPayload.content === "string" && webhookPayload.content.length > 0;
+    const hasEmbeds = Array.isArray(webhookPayload.embeds) && webhookPayload.embeds.length > 0;
+    const hasFiles = Array.isArray(webhookPayload.files) && webhookPayload.files.length > 0;
+
+    if (!hasContent && !hasEmbeds && !hasFiles) {
+        // Au lieu de bloquer, on envoie un caractère invisible de secours (Zero-Width Space)
+        // afin que le message s'affiche et que l'historique d'ID de message reste intact
+        webhookPayload.content = "​"; 
     }
 
     if (action === "send") {
@@ -465,15 +504,11 @@ async function send(message, content, channelId, action, type, msgId, dynamicMai
     
     if (action === "edit") {
         if (!msgId) return null;
-        // L'édition requiert également le threadId combiné dans la payload pour les webhooks
         await webhookClient.editMessage(msgId, webhookPayload);
     }
 
     return null;
 }
-
-
-
 
 async function saveMessageMapping(message, channelId, trsMessageId, type, dynamicMainMsgId) {
     let mainId, mainMsgId, trsId, trsMsgId;
