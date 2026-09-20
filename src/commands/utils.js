@@ -18,8 +18,14 @@ export const command = {
     )
     .addSubcommand( (subcommand) =>
         subcommand
-        .setName("rulebook")
-        .setDescription("Show our ingame rulebook")
+        .setName("money-spent")
+        .setDescription("Approximately know how much money you spent in game")
+        .addIntegerOption( (option) =>
+            option
+            .setName("points")
+            .setDescription("VIP points you got")
+            .setRequired(true)
+        )
     )
     .addSubcommandGroup( (subcommandgroup) =>
         subcommandgroup
@@ -36,6 +42,10 @@ export const command = {
         // Get all command data
         const diceroll = (interaction.options.getSubcommand() != "diceroll") ? null : {
             faces: (interaction.options.getInteger("faces")) ? interaction.options.getInteger("faces") : 6
+        }
+
+        const money = (interaction.options.getSubcommand() != "money-spent") ? null : {
+            points: (interaction.options.getInteger("points")) ? interaction.options.getInteger("points") : null
         }
 
         switch(interaction.options.getSubcommandGroup()) {
@@ -65,22 +75,11 @@ export const command = {
                             content: `You rolled a ${number} (range: 1 to ${diceroll.faces})`
                         });
                     break;
-                    case "rulebook":
+                    case "money-spent":
+                        const spent = (money.points / 6480 * 100).toFixed(2);
 
-                        const rules = new EmbedBuilder()
-                        .setTitle(`Ingame rules`)
-                        .addFields(
-                            { name: `Auctions`, value: `1. Call your item before the auction starts (15 minutes minimum)\n2. Call 1 item per auction maximum\n3. If you got the item recently and someone asks for it, leave it to him\n4. Don't bid as anonymous\n5. Don't overbid on others calls\n6. These rules doesn't apply (except rule 4) on items nobody called` },
-                            { name: `Help`, value: `1. People help if they want, don't expect them to help you everytime\n2. Don't spam people for help, ask one time and let it go\n3. Don't help players outside the village\n4. If you break the level cap in bloodclash, ask to Evileoo to help until you stuck, then ask to Eddie` },
-                            { name: `Conduct`, value: `1. No insults or inappropriate conduct towards any player` },
-                            { name: `Sanctions`, value: `1st infraction: warn and reminder of the rules\n2nd infraction: permanent ban from the village` }
-                        )
-                        .setTimestamp()
-                    
-                    
                         await interaction.reply({
-                            embeds: [rules],
-                            flags: MessageFlags.Ephemeral
+                            content: `Your amount of VIP points are worth $${spent}`
                         });
                     break;
                     default:

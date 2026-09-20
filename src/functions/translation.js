@@ -57,6 +57,7 @@ async function htmlToMd(message) {
 // Fonction principale réécrite de bout en bout
 async function messageManage(message, action) {
     if (message.webhookId && action === "send") return;
+    if(!message.channel) return;
     
     // Garde de sécurité : Ignorer immédiatement tous les messages système de Discord
     if (message.system) return;

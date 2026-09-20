@@ -2,7 +2,6 @@ import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags, C
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
 import { lists } from '../functions/lists.js';
-import { bloodclash } from '../functions/bloodclash.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -226,8 +225,8 @@ export const command = {
     )
     .addSubcommand( (subcommand) =>
         subcommand
-        .setName("cluster")
-        .setDescription("Define in which Blood Clash cluster you are in")
+        .setName("ping")
+        .setDescription("ping your village")
     )
     , async execute(interaction){
 
@@ -283,8 +282,8 @@ export const command = {
             case "member-name":
                 renameMember(data, interaction);
             break;
-            case "cluster":
-                bloodclash.cluster(interaction, 1, true);
+            case "ping":
+                ping(interaction);
             break;
             default:
             break;
@@ -971,6 +970,20 @@ export const command = {
 
             await interaction.reply({
                 content: `name changed, it will update soon`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        async function ping(interaction) {
+            const member = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+            const village = await db.getrow(`SELECT role_id FROM village WHERE tag = ?`, [member.village_tag]);
+
+            await interaction.channel.send({
+                content: `<@&${village.role_id}>`
+            });
+
+            await interaction.reply({
+                content: `ok`,
                 flags: MessageFlags.Ephemeral
             });
         }

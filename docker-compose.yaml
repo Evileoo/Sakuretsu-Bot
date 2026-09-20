@@ -10,6 +10,7 @@ services:
       - LT_LOAD_ONLY=en,fr,de,hi,id,it,pt,ru,es,vi  # Charger uniquement les langues nécessaires (fortement recommandé)
       - LT_API_KEYS=false         # Passer à true si vous souhaitez restreindre l'accès par clé
       - LT_REQ_LIMIT=60           # Limite le nombre de requêtes par minute par client
+      - LT_HOST=0.0.0.0
     restart: unless-stopped
 
 volumes:

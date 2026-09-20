@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
+import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags, TextInputStyle } from 'discord.js';
 import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
 import fs, { glob } from 'fs';
@@ -17,15 +17,34 @@ export const command = {
         .addStringOption( (option) =>
             option
             .setName("name")
-            .setDescription("Event name - pick from autocompletes if the event is known")
+            .setDescription("Event name")
             .setRequired(true)
             .setAutocomplete(true)
         )
         .addStringOption( (option) =>
             option
-            .setName("date")
-            .setDescription("date format : YYYY-MM-DD HH:MM:SS (ingame date)")
+            .setName("parent_name")
+            .setDescription("The category or group ID of this event")
             .setRequired(true)
+            .addChoices(
+                { name: 'Blood Clash', value: 'Blood Clash' },
+                { name: 'Calendar Events', value: 'Calendar Events' },
+                { name: 'PvP Events', value: 'PvP Events' },
+                { name: 'Ninja War Events', value: 'Ninja War Events' },
+                { name: 'Exceptional Events', value: 'Exceptional Events' },
+            )
+        )
+        .addStringOption( (option) =>
+            option
+            .setName("date")
+            .setDescription("Start date format : YYYY-MM-DD HH:MM:SS (ingame date)")
+            .setRequired(true)
+        )
+        .addStringOption( (option) =>
+            option
+            .setName("end_date")
+            .setDescription("End date format : YYYY-MM-DD HH:MM:SS (ingame date)")
+            .setRequired(false)
         )
         .addStringOption(option =>
             option
@@ -37,6 +56,12 @@ export const command = {
             option
             .setName("role")
             .setDescription("the role who will receive a notification")
+            .setRequired(false)
+        )
+        .addStringOption(option =>
+            option
+            .setName("data")
+            .setDescription("Custom data of the event")
             .setRequired(false)
         )
     )
@@ -63,27 +88,47 @@ export const command = {
             .setRequired(true)
         )
     )
+    .addSubcommand( (subcommand) =>
+        subcommand
+        .setName("data")
+        .setDescription("Update data of an event")
+        .addStringOption( (option) =>
+            option
+            .setName("name")
+            .setDescription("Event name")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
     , async execute(interaction){
 
         // Get all command data
         const eventAdd = (interaction.options.getSubcommand() != "add") ? null : {
-            name: (interaction.options.getString("name")) ? interaction.options.getString("name") : null,
-            date: (interaction.options.getString("date")) ? interaction.options.getString("date") : null,
-            periodicity: (interaction.options.getString("periodicity")) ? interaction.options.getString("periodicity") : null,
-            role: (interaction.options.getRole("role")) ? interaction.options.getRole("role") : null
+            name: interaction.options.getString("name") ?? null,
+            parentName: interaction.options.getString("parent_name") ?? null,
+            date: interaction.options.getString("date") ?? null,
+            endDate: interaction.options.getString("end_date") ?? null,
+            periodicity: interaction.options.getString("periodicity") ?? null,
+            role: interaction.options.getRole("role") ? `<@&${interaction.options.getRole("role").id}>` : null,
+            data: interaction.options.getString("data") ?? null
         };
 
         const eventRemove = (interaction.options.getSubcommand() != "remove") ? null : {
-            event: (interaction.options.getString("event")) ? interaction.options.getString("event") : null
+            event: interaction.options.getString("event") ?? null
         };
 
         const eventCalendar = (interaction.options.getSubcommand() != "calendar") ? null : {
-            calendar: (interaction.options.getAttachment("image")) ? interaction.options.getAttachment("image") : null
+            calendar: interaction.options.getAttachment("image") ?? null
+        };
+
+        const eventData = (interaction.options.getSubcommand() != "data") ? null : {
+            name: interaction.options.getString("name") ?? null
         };
 
         // Get guild and channel objects
         const guild = await interaction.client.guilds.cache.get(globals.server.id);
-        const channel = await guild.channels.cache.get(globals.server.channel.missionBoard);
+        //const channel = await guild.channels.cache.get(globals.server.channel.missionBoard);
+        const channel = await guild.channels.cache.get("1485202060973576212");
 
         switch(interaction.options.getSubcommand()){
             case "add":
@@ -116,6 +161,11 @@ export const command = {
                     flags: MessageFlags.Ephemeral
                 });
             break;
+            case "data":
+                await editData(eventData, interaction);
+
+                await mb.editPanel(channel, "edit");
+            break;
             default:
             break;
         }
@@ -123,8 +173,12 @@ export const command = {
 }
 
 async function addEvent(data){
-    await db.insert('INSERT INTO events (event_name, event_time, event_frequency, role_to_ping) VALUES (?, ?, ?, ?)', [data.name, data.date, data.periodicity, data.role]);
+    await db.insert(
+        'INSERT INTO events (event_name, event_parent_name, event_time_start, event_time_end, event_frequency, role_to_ping, event_data) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+        [data.name, data.parentName, data.date, data.endDate, data.periodicity, data.role, data.data]
+    );
 }
+
 
 async function removeEvent(data){
     await db.delete('DELETE FROM events WHERE event_name = ?', [data.event]);
@@ -147,4 +201,33 @@ async function getCalendar(data){
     
 
     
+}
+
+async function editData(data, interaction) {
+    const eventData = await db.getrow(`SELECT * FROM events WHERE event_name = ?`, [data.name]);
+
+    if(!eventData) {
+        return await interaction.reply({
+            content : `event unkown`
+        });
+    }
+
+    const modal = new ModalBuilder()
+    .setCustomId(`eventData${globals.separator}${eventData.id}`)
+    .setTitle(`Event Data`);
+
+    const input = new TextInputBuilder()
+    .setCustomId(`dataContent`)
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(255)
+    .setValue(eventData.event_data);
+
+    const label = new LabelBuilder()
+    .setLabel(`data`)
+    .setDescription(`data saved`)
+    .setTextInputComponent(input)
+
+    modal.addLabelComponents(label);
+
+    await interaction.showModal(modal);
 }

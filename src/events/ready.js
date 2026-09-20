@@ -59,7 +59,7 @@ export const event = {
         client.user.setStatus("online");
 
         // Load the mission board panel
-        //mb.missionBoard(client);
+        mb.missionBoard(client);
 
         // Load name update routine
         //nameUpdates.updateRoutine(client);

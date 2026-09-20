@@ -1,0 +1,12 @@
+- [x] max floor 1500
+- [x] id 123456798
+- [x] help 4
+- [ ] cancel 4 / cancel @member
+- [ ] finish 4 / finish @member
+- [x] blacklist 4 / blacklist @member
+- [x] whitelist 4 / whitelist @member
+- [x] lobby open
+- [x] lobby close
+- [x] lobby cancel
+- [ ] lobby finish 1500
+- [ ] lobby floor 1500

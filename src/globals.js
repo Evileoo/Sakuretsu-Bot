@@ -16,7 +16,8 @@ export const globals = {
             general: `1478130580712460480`,
             villages: `1504080991273091143`,
             bloodClash: `1528779829686702250`,
-            bcHelp: `1530881093593464902`
+            bcHelp: `1530881093593464902`,
+            automod: `1542981838849577073`
         },
         role: {
             mod: `1483148976101396480`,
@@ -29,6 +30,7 @@ export const globals = {
             pingAuction: `1478135570696769638`,
             pingNinjaWar: `1478135456393597008`,
             bcHelper: `1528780090597707887`,
+            bcHelp: `1531724876858265861`,
             restriction: `1531008532412104954`
         },
         member: {
@@ -47,5 +49,8 @@ export const globals = {
         white: 0xe3e3e3,
         grey: 0x8f8f8f,
         black: 0x050505
+    },
+    vars: {
+        maxBcFloor: 1550
     }
 }
