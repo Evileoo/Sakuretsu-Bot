@@ -32,6 +32,7 @@ export const command = {
                 { name: 'PvP Events', value: 'PvP Events' },
                 { name: 'Ninja War Events', value: 'Ninja War Events' },
                 { name: 'Exceptional Events', value: 'Exceptional Events' },
+                { name: 'Daily Events', value: 'Daily Events' },
             )
         )
         .addStringOption( (option) =>

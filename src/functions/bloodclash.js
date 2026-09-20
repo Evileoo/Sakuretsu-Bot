@@ -166,6 +166,8 @@ async function inBcChannel(message) {
     } else {
 
         const member = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
+        const schedule = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE id = ?`, [message.author.id]);
+        
         let alerts = `\n`;
         if(!member) {
             await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [message.author.id, message.author.displayName ?? message.author.username]);
