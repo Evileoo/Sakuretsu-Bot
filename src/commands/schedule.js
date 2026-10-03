@@ -149,6 +149,7 @@ export const command = {
         }
 
         async function displaySchedule(interaction, id) {
+            console.log(id);
             const member = await db.getrow(`SELECT timezone, name FROM member WHERE id = ?`, [id]);
             
             if(!member) {
@@ -166,6 +167,11 @@ export const command = {
                     flags: MessageFlags.Ephemeral
                 });
             }
+
+            await interaction.reply({
+                content: `loading`,
+                flags: MessageFlags.Ephemeral
+            });
 
             const scheduleTimes = [
                 { name: `Monday`, data: [] },
@@ -238,9 +244,9 @@ export const command = {
                 }
             }
 
-            await interaction.reply({
-                embeds: [scheduleEmbed],
-                flags: MessageFlags.Ephemeral
+            await interaction.editReply({
+                content: ` `,
+                embeds: [scheduleEmbed]
             });
 
         }

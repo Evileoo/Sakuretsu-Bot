@@ -79,7 +79,8 @@ export const command = {
                         const spent = (money.points / 6480 * 100).toFixed(2);
 
                         await interaction.reply({
-                            content: `Your amount of VIP points are worth $${spent}`
+                            content: `Your amount of VIP points are worth $${spent}`,
+                            falgs: MessageFlags.Ephemeral
                         });
                     break;
                     default:

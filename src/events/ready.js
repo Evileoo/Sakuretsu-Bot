@@ -3,14 +3,16 @@ import schedule from 'node-schedule';
 import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
-import { translation } from '../functions/translation.js';
-import { manageEmojis } from '../functions/emojis.js';
+import { tierlist } from '../functions/tierlist.js';
+import { globals } from '../globals.js';
 
 // Executed when bot is ready
 export const event = {
     name: Events.ClientReady,
     once: true,
     async execute(client){
+
+        const guild = await client.guilds.fetch(globals.server.id);
 
         // Testing database connection
         try{
@@ -65,9 +67,12 @@ export const event = {
         //nameUpdates.updateRoutine(client);
 
         // Load translation links
-        translation.load();
+        //translation.load();
 
         //Load emojis
-        manageEmojis.getBotEmojis(client);
+        //manageEmojis.getBotEmojis(client);
+
+        // Refresh tierlist
+        tierlist.tierlistMessage(await guild.channels.fetch(globals.server.channel.tierlist));
     }
 }

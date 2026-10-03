@@ -12,6 +12,6 @@ export const event = {
         await bc.filter(message);
 
         // Translate the message if required
-        await translation.messageManage(message, "send");
+        //await translation.messageManage(message, "send");
     }
 }

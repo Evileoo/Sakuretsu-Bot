@@ -8,6 +8,6 @@ export const event = {
     async execute(oldMessage, newMessage){
         // Translate the message if required
         if (newMessage.webhookId) return;
-        await translation.messageManage(newMessage, "edit");
+        //await translation.messageManage(newMessage, "edit");
     }
 }

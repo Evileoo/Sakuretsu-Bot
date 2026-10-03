@@ -8,6 +8,6 @@ export const event = {
     async execute(message){
         if(!message.guild) return;
         // Translate the message if required
-        await translation.messageManage(message, "delete");
+        //await translation.messageManage(message, "delete");
     }
 }

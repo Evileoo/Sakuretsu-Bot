@@ -97,7 +97,7 @@ export const command = {
             option
             .setName("name")
             .setDescription("Event name")
-            .setRequired(false)
+            .setRequired(true)
             .setAutocomplete(true)
         )
     )

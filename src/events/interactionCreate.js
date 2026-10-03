@@ -74,6 +74,10 @@ export const event = {
 				if(interaction.options._subcommand == "link") {
 					autocomplete = interaction.client.autocompletes.get(`getTranslateLinks`);
 				}
+			} else if(interaction.commandName == 'ninja') {
+				if(interaction.options._subcommand == "get") {
+					autocomplete = interaction.client.autocompletes.get(`getNinja`);
+				}
 			} else {
 				console.error(`No autocomplete matching ${interaction.commandName} / ${interaction.options._subcommand} was found.`);
 				return;
