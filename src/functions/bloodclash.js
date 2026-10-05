@@ -93,9 +93,8 @@ async function inBcChannel(message) {
 
     // Check if floor is above the max floor
     const event = await db.getrow(`SELECT event_data FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
+    const eventData = event.event_data.split(`${globals.separator}`);
     if(event) {
-        const eventData = event.event_data.split(`${globals.separator}`);
-
         if(!isNaN(eventData[0]) && request.floor >= parseInt(eventData[0])) {
             return await message.reply({
                 content: `Your request is above the max Blood Clash floor.`
