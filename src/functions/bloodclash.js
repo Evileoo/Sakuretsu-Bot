@@ -117,11 +117,11 @@ async function inBcChannel(message) {
         const schedule = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE id = ?`, [message.author.id]);
         let alerts = "\n";
 
-        if(request.floor > globals.vars.maxBcFloor) {
-        return await message.reply({
-            content: `You can't ask for help above the max bc floor (${globals.vars.maxBcFloor})`
-        });
-    }
+        if(!isNaN(eventData[0]) && request.floor >= parseInt(eventData[0])) {
+            return await message.reply({
+                content: `You can't ask for help above the max bc floor (${eventData[0]})`
+            });
+        }
 
         if(!member || member.name == null) {
             alerts += `To increase your chances of getting picked up, please give your name to the bot with the \`my name\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540794465055412314 \n`
