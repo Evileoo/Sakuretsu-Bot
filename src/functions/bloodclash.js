@@ -1041,6 +1041,7 @@ async function updateList(message) {
         { name: `Requester`, value: nameColumnH, inline: true },
         { name: `Helper`, value: helperColumnH, inline: true },
     )
+    .setTimestamp();
 
     // Create the "how to help button"
     const howToHelp = new ButtonBuilder()
