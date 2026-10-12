@@ -1,4 +1,4 @@
-import { starboard } from "../functions/starboard";
+import { starboard } from "../functions/starboard.js";
 
 export const event = {
     name: 'messageReactionAdd',
