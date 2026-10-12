@@ -13,9 +13,10 @@ async function starred(message) {
 // Fonction principale qui vérifie si le message doit être forward
 async function checkStars(reaction) {
     if (reaction.emoji.name !== '⭐') return;
+    const message = reaction.message;
+    
     if(message.channel.id == globals.server.channel.starboard) return;
     
-    const message = reaction.message;
     if (reaction.count < 5) return;
 
     // Vérifier si le bot a déjà réagi
