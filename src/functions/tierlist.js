@@ -22,24 +22,23 @@ async function getTierlistText(type) {
     flatNinjasList.sort((a, b) => b.avgScore - a.avgScore);
 
     const displayTiers = {
-        'G': [], 'S': [], 'A': [], 'B': [], 'C': [], 'D': []
+        'G Tier': [], 'S Tier': [], 'A Tier': [], 'B Tier': [], 'C Tier': []
     };
 
     // Répartition selon la moyenne corrigée du ninja
     for (const ninja of flatNinjasList) {
-        if (ninja.avgScore >= 61) displayTiers['G'].push(ninja.displayName);
-        else if (ninja.avgScore >= 51) displayTiers['S'].push(ninja.displayName);
-        else if (ninja.avgScore >= 41) displayTiers['A'].push(ninja.displayName);
-        else if (ninja.avgScore >= 31) displayTiers['B'].push(ninja.displayName);
-        else if (ninja.avgScore >= 21) displayTiers['C'].push(ninja.displayName);
-        else if (ninja.avgScore >= 11) displayTiers['D'].push(ninja.displayName);
+        if (ninja.avgScore >= 61) displayTiers['G Tier'].push(ninja.displayName);
+        else if (ninja.avgScore >= 51) displayTiers['S Tier'].push(ninja.displayName);
+        else if (ninja.avgScore >= 41) displayTiers['A Tier'].push(ninja.displayName);
+        else if (ninja.avgScore >= 31) displayTiers['B Tier'].push(ninja.displayName);
+        else if (ninja.avgScore >= 21) displayTiers['C Tier'].push(ninja.displayName);
     }
 
     // Formatage compact de la colonne pour l'embed Discord (ex: **S**: Naruto, Sasuke)
     let text = "";
     for (const [tierName, ninjas] of Object.entries(displayTiers)) {
         if (ninjas.length > 0) {
-            text += `**${tierName}**: ${ninjas.join(', ')}\n`;
+            text += `**${tierName}**\n ${ninjas.join('\n')}\n`;
         }
     }
 
