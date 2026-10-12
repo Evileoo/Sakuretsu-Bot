@@ -4,48 +4,47 @@ import { globals } from '../globals.js';
 
 async function getTierlistText(type) {
     const data = await defineTiers(type);
-    const totalLists = data.tierlists || 1;
 
     const flatNinjasList = [];
     for (const ninja of Object.values(data.scores)) {
         if (ninja.score > 0) {
-            flatNinjasList.push({ displayName: `${ninja.long || ninja.short}\n`, avgScore: ninja.score / totalLists });
+            flatNinjasList.push({ displayName: ninja.long || ninja.short, avgScore: ninja.score / ninja.count });
         }
         if (ninja.score_t2 > 0) {
-            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T2\n`, avgScore: ninja.score_t2 / totalLists });
+            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T2`, avgScore: ninja.score_t2 / ninja.count });
         }
         if (ninja.score_t5 > 0) {
-            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T5\n`, avgScore: ninja.score_t5 / totalLists });
+            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T5`, avgScore: ninja.score_t5 / ninja.count });
         }
     }
 
-    // Tri décroissant par score moyen
+    // Tri décroissant par score moyen (le meilleur score en premier)
     flatNinjasList.sort((a, b) => b.avgScore - a.avgScore);
 
     const displayTiers = {
-        'G Tier\n': [], 'S Tier\n': [], 'A Tier\n': [], 'B Tier\n': [], 'C Tier\n': [], 'D Tier\n': []
+        'G': [], 'S': [], 'A': [], 'B': [], 'C': [], 'D': []
     };
 
+    // Répartition selon la moyenne corrigée du ninja
     for (const ninja of flatNinjasList) {
-        if (ninja.avgScore >= 61) displayTiers['G Tier\n'].push(ninja.displayName);
-        else if (ninja.avgScore >= 51) displayTiers['S Tier\n'].push(ninja.displayName);
-        else if (ninja.avgScore >= 41) displayTiers['A Tier\n'].push(ninja.displayName);
-        else if (ninja.avgScore >= 31) displayTiers['B Tier\n'].push(ninja.displayName);
-        else if (ninja.avgScore >= 21) displayTiers['C Tier\n'].push(ninja.displayName);
-        else if (ninja.avgScore >= 11) displayTiers['D Tier\n'].push(ninja.displayName);
+        if (ninja.avgScore >= 61) displayTiers['G'].push(ninja.displayName);
+        else if (ninja.avgScore >= 51) displayTiers['S'].push(ninja.displayName);
+        else if (ninja.avgScore >= 41) displayTiers['A'].push(ninja.displayName);
+        else if (ninja.avgScore >= 31) displayTiers['B'].push(ninja.displayName);
+        else if (ninja.avgScore >= 21) displayTiers['C'].push(ninja.displayName);
+        else if (ninja.avgScore >= 11) displayTiers['D'].push(ninja.displayName);
     }
 
-    // Formatage du texte pour l'embed (ex: **S** : Naruto, Sasuke)
-    // On utilise un retour à la ligne pour que la colonne reste compacte verticalement
+    // Formatage compact de la colonne pour l'embed Discord (ex: **S**: Naruto, Sasuke)
     let text = "";
     for (const [tierName, ninjas] of Object.entries(displayTiers)) {
         if (ninjas.length > 0) {
-            text += `**__${tierName}__** ${ninjas.join('')}\n`;
+            text += `**${tierName}**: ${ninjas.join(', ')}\n`;
         }
     }
 
     return {
-        text: text || "*No ninja in this tier yet*",
+        text: text || "*No ninjas ranked*",
         count: data.tierlists
     };
 }

@@ -28,7 +28,7 @@ export const command = {
             option
             .setName("kage")
             .setDescription("Village Kage")
-            .setRequired(true)
+            .setRequired(false)
         )
     )
     .addSubcommand( (subcommand) =>
@@ -298,18 +298,20 @@ export const command = {
                 });
             }
 
-            const accountCreated = await db.getrow(`SELECT name FROM member WHERE id = ?`, [data.kage.id]);
-            if(!accountCreated) {
-                const member = await interaction.guild.members.cache.get(data.kage.id);
-                await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [data.kage.id, member.displayName ?? data.kage.username]);
-            }
+            if(data.kage) {
+                const accountCreated = await db.getrow(`SELECT name FROM member WHERE id = ?`, [data.kage.id]);
+                if(!accountCreated) {
+                    const member = await interaction.guild.members.cache.get(data.kage.id);
+                    await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [data.kage.id, member.displayName ?? data.kage.username]);
+                }
 
-            const inVillage = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [data.kage.id]);
-            if(inVillage.village_tag != null) {
-                return await interaction.reply({
-                    content: `<@${data.kage.id}> is already in a village`,
-                    flags: MessageFlags.Ephemeral
-                });
+                const inVillage = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [data.kage.id]);
+                if(inVillage.village_tag != null) {
+                    return await interaction.reply({
+                        content: `<@${data.kage.id}> is already in a village`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
             }
 
             const tagTaken = await db.getrow(`SELECT name FROM village WHERE tag = ?`, [data.tag]);
@@ -401,19 +403,25 @@ export const command = {
             moderation.permissionOverwrites.edit(role.id, {
                 ViewChannel: false
             });
-            moderation.permissionOverwrites.edit(data.kage.id, {
-                ViewChannel: true
-            });
+            if(data.kage) {
+                moderation.permissionOverwrites.edit(data.kage.id, {
+                    ViewChannel: true
+                });
+            }
+            
 
             // Edit Kage roles
             const kage = interaction.guild.roles.cache.get(globals.server.role.kage);
             const sub = interaction.guild.roles.cache.get(globals.server.role.sub);
             const lone = interaction.guild.roles.cache.get(globals.server.role.lone);
 
-            interaction.guild.members.cache.get(data.kage.id).roles.add(role);
-            interaction.guild.members.cache.get(data.kage.id).roles.add(kage);
-            interaction.guild.members.cache.get(data.kage.id).roles.add(sub);
-            interaction.guild.members.cache.get(data.kage.id).roles.remove(lone);
+            if(data.kage) {
+                interaction.guild.members.cache.get(data.kage.id).roles.add(role);
+                interaction.guild.members.cache.get(data.kage.id).roles.add(kage);
+                interaction.guild.members.cache.get(data.kage.id).roles.add(sub);
+                interaction.guild.members.cache.get(data.kage.id).roles.remove(lone);
+            }
+            
 
             // Create the panel in moderation for village flow messages
             const flowPanel = new EmbedBuilder()
@@ -458,9 +466,15 @@ export const command = {
             // Send message in village flow concerning village creation
             const villageCreation = new EmbedBuilder()
             .setTitle(`${data.name} village created !`)
-            .setDescription(`<@${data.kage.id}> is the village Kage`)
+            
             .setColor(globals.embed.white)
             .setTimestamp();
+
+            if(data.kage) {
+                villageCreation.setDescription(`<@${data.kage.id}> is the village Kage`);
+            } else {
+                villageCreation.setDescription(`No kage has been set yet`);
+            }
 
             await flow.send({
                 embeds: [villageCreation]
@@ -488,7 +502,9 @@ export const command = {
             ]);
 
             // Update the member village
-            await db.update(`UPDATE member SET village_tag = ? WHERE id = ?`, [data.tag, data.kage.id]);
+            if(data.kage) {
+                await db.update(`UPDATE member SET village_tag = ? WHERE id = ?`, [data.tag, data.kage.id]);
+            }
         
             // Send message in villages chat
             const villagesChat = await interaction.guild.channels.cache.get(globals.server.channel.villages);

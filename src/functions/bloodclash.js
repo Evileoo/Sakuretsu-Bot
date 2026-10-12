@@ -188,7 +188,7 @@ async function inBcChannel(message) {
             }
 
             if(alerts != `\n`) {
-                alerts += `PC Command tutorial : https://discord.com/channels/1478130301552033982/1533026207753437318 \nPhone Command tutorial : https://discord.com/channels/1478130301552033982/1533025962336190654`
+                alerts += `PC Command tutorial : https://discord.com/channels/1478130301552033982/1533026207753437318 \nPhone Command tutorial : https://discord.com/channels/1478130301552033982/1533025962336190654\nIf you're struggling with commands, ask in https://discord.com/channels/1478130301552033982/1555977853223436468 for a moderator to edit these informations by giving a screenshot of your in-game account`
             }
         }
 

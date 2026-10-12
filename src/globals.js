@@ -1,3 +1,5 @@
+import { starboard } from "./functions/starboard";
+
 export const globals = {
     separator: `|||`,
     developer: {
@@ -18,7 +20,8 @@ export const globals = {
             bloodClash: `1528779829686702250`,
             bcHelp: `1530881093593464902`,
             automod: `1542981838849577073`,
-            tierlist: `1551315395410006196`
+            tierlist: `1551315395410006196`,
+            starboard: `1559211027235737680`
         },
         role: {
             mod: `1483148976101396480`,

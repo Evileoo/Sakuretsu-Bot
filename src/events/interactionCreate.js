@@ -70,6 +70,10 @@ export const event = {
 				if(interaction.options._subcommand == "delete") {
 					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
 				}
+			} else if(interaction.commandName == 'mod') {
+				if(interaction.options._subcommand == "change") {
+					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
+				}
 			} else if(interaction.commandName == 'translate') {
 				if(interaction.options._subcommand == "link") {
 					autocomplete = interaction.client.autocompletes.get(`getTranslateLinks`);

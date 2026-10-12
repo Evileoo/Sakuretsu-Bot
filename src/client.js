@@ -7,13 +7,16 @@ export const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent
     ],
     partials: [
         Partials.Message,
         Partials.Channel,
         Partials.Reaction,
         Partials.ThreadMember,
-        Partials.GuildMember
+        Partials.GuildMember,
+        Partials.User
     ]
 });
