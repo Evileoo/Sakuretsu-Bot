@@ -1,5 +1,3 @@
-import { starboard } from "./functions/starboard";
-
 export const globals = {
     separator: `|||`,
     developer: {

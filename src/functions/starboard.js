@@ -1,4 +1,3 @@
-import { client } from '../client.js';
 import { globals } from '../globals.js';
 
 // Fonction interne qui gère le transfert natif dans le salon starboard
