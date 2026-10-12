@@ -118,8 +118,13 @@ export const command = {
             const guildMember = await interaction.guild.members.cache.get(params.member.id);
 
             if(!member) {
-                await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [interaction.user.id, interaction.member.displayName ?? interaction.user.username]);
+                await db.insert(`INSERT INTO member (id) VALUES (?)`, [params.member.id]);
             }
+
+            await interaction.reply({
+                content: `Added`,
+                flags: MessageFlags.Ephemeral
+            });
 
             if(member && member.village_tag) {
                 // Remove origin village
@@ -156,7 +161,7 @@ export const command = {
             // Send message in village flow
             const flowEmbed = new EmbedBuilder()
             .setTitle(`New member`)
-            .setDescription(`<@${interaction.user.id}> has joined the village !\n#- added by a moderator`)
+            .setDescription(`<@${params.member.id}> has joined the village !\n#- added by a moderator`)
             .setColor(globals.embed.green)
             .setTimestamp();
 
