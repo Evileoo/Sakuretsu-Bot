@@ -11,10 +11,10 @@ async function getTierlistText(type) {
             flatNinjasList.push({ displayName: ninja.long || ninja.short, avgScore: ninja.score / ninja.count });
         }
         if (ninja.score_t2 > 0) {
-            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T2`, avgScore: ninja.score_t2 / ninja.count });
+            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T2`, avgScore: ninja.score_t2 / ninja.count_t2 });
         }
         if (ninja.score_t5 > 0) {
-            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T5`, avgScore: ninja.score_t5 / ninja.count });
+            flatNinjasList.push({ displayName: `${ninja.long || ninja.short} T5`, avgScore: ninja.score_t5 / ninja.count_t5 });
         }
     }
 
@@ -38,7 +38,7 @@ async function getTierlistText(type) {
     let text = "";
     for (const [tierName, ninjas] of Object.entries(displayTiers)) {
         if (ninjas.length > 0) {
-            text += `**${tierName}**\n ${ninjas.join('\n')}\n`;
+            text += `**${tierName}**\n ${ninjas.join('\n')}\n\n`;
         }
     }
 
@@ -194,7 +194,9 @@ async function defineTiers(type) {
             score: 0,
             score_t2: 0,
             score_t5: 0,
-            count: 0
+            count: 0,
+            count_t2: 0,
+            count__t5: 0
         };
     }
 
@@ -213,8 +215,6 @@ async function defineTiers(type) {
             } else {
                 const step = (config.max - config.min) / (totalNinjasInTier + 1);
                 for (let i = 1; i <= totalNinjasInTier; i++) {
-                    // MODIFICATION ICI : .unshift() au lieu de .push() pour mettre les plus gros scores au début du tableau 
-                    // Ainsi, le premier ninja de la liste aura le score le plus proche de config.max
                     scoresForThisTier.unshift(Number((config.min + step * i).toFixed(2)));
                 }
             }
@@ -234,12 +234,15 @@ async function defineTiers(type) {
                     const key = matchedNinja.short;
                     if (suffix === 'T2') {
                         globalScores[key].score_t2 += assignedScore;
+                        globalScores[key].count_t2 += 1;
                     } else if (suffix === 'T5') {
                         globalScores[key].score_t5 += assignedScore;
+                        globalScores[key].count_t5 += 1;
                     } else {
                         globalScores[key].score += assignedScore;
+                        globalScores[key].count += 1;
                     }
-                    globalScores[key].count += 1;
+                    
                 }
             });
         }

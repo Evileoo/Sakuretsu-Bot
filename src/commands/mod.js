@@ -136,7 +136,7 @@ export const command = {
                 // Send message in village flow
                 const oldFlowEmbed = new EmbedBuilder()
                 .setTitle(`Member left`)
-                .setDescription(`<@${params.member.id}> has left the village !\n#- removed by a moderator`)
+                .setDescription(`<@${params.member.id}> has left the village !\nremoved by <@${interaction.user.id}>`)
                 .setColor(globals.embed.orange)
                 .setTimestamp();
 
@@ -161,7 +161,7 @@ export const command = {
             // Send message in village flow
             const flowEmbed = new EmbedBuilder()
             .setTitle(`New member`)
-            .setDescription(`<@${params.member.id}> has joined the village !\n#- added by a moderator`)
+            .setDescription(`<@${params.member.id}> has joined the village !\nadded by <@${interaction.user.id}>`)
             .setColor(globals.embed.green)
             .setTimestamp();
 
