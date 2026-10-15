@@ -190,7 +190,7 @@ export const command = {
             const target = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [params.member.id]);
             const village = await db.getrow(`SELECT moderation FROM village WHERE tag = ?`, [target.village_tag]);
             
-            if(!target || !target.village_tag || target.village_tag != executor.village_tag) {
+            if(!target || !target.village_tag) {
                 return await interaction.reply({
                     content: `This member is not from a village`,
                     flags: MessageFlags.Ephemeral
