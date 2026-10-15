@@ -1,12 +1,41 @@
-- [x] max floor 1500
-- [x] id 123456798
-- [x] help 4
-- [ ] cancel 4 / cancel @member
-- [ ] finish 4 / finish @member
-- [x] blacklist 4 / blacklist @member
-- [x] whitelist 4 / whitelist @member
-- [x] lobby open
-- [x] lobby close
-- [x] lobby cancel
-- [ ] lobby finish 1500
-- [ ] lobby floor 1500
+# Build planner
+## Personal
+### Ninja tied
+- Base stats
+- Skills
+- Promote
+- ninjutsu
+- Genjutsu
+- Taijutsu
+- Sage Charkra
+- Release Technique
+- Awaken
+- Intimacy
+- Lineups
+### Stuff
+- armor
+- weapon
+- tool
+- accessories
+- Bloodline
+## Global
+- Bond
+- Artifacts
+- Element Enhancement
+- Spiritual Beast
+- Contract
+- Jade
+- Legacies
+- Legacies Gear Gallery
+- Style Mastery
+- Ninja Tools Gallery Stats
+- Tailed Beast Training
+### Player
+- Player Title
+### Ninja War
+- Settlement Appearance
+- Queue Appearance
+- Settlement Decoration
+### Village
+- Basic Renegade Hub
+- Tech - Tactic

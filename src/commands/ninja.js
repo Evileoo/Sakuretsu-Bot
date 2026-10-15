@@ -39,6 +39,7 @@ export const command = {
                 { name: `Global data`, value: `g` },
                 { name: `Skills`, value: `s` },
                 { name: `Awakens`, value: `a` },
+                { name: `Base stats`, value: `b` },
             )
         )
     )
@@ -168,7 +169,7 @@ export const command = {
             const ninja = await db.getrow(`SELECT * FROM ninjas WHERE \`short\` = ?`, [params.name]);
 
             const modal = new ModalBuilder()
-            .setCustomId(`editNinja${globals.separator}${params.type}`);
+            .setCustomId(`editNinja${globals.separator}${params.type}${globals.separator}${params.name}`);
 
             if(params.type == "g") {
                 modal.setTitle(`Edit global ninja data`);
@@ -222,6 +223,47 @@ export const command = {
                 .setTextInputComponent(dmgType);
 
                 modal.addLabelComponents(rarityLabel, elementLabel, classLabel, dmgTypeLabel);
+
+            } else if(params.type == "b") {
+                modal.setTitle(`Edit ninja base stats`);
+
+                const hp = new TextInputBuilder()
+                .setCustomId(`hp`)
+                .setStyle(TextInputStyle.Short)
+                .setMaxLength(4)
+                .setRequired(true)
+                .setValue((ninja?.hp) ? ninja.hp : " ");
+
+                const hpLabel = new LabelBuilder()
+                .setLabel(`HPs`)
+                .setDescription(`Base HPs of the ninja`)
+                .setTextInputComponent(hp);
+
+                const atk = new TextInputBuilder()
+                .setCustomId(`atk`)
+                .setStyle(TextInputStyle.Short)
+                .setMaxLength(3)
+                .setRequired(true)
+                .setValue((ninja?.atk) ? ninja.atk : " ");
+
+                const atkLabel = new LabelBuilder()
+                .setLabel(`ATK`)
+                .setDescription(`Base ATK of the ninja`)
+                .setTextInputComponent(atk);
+
+                const def = new TextInputBuilder()
+                .setCustomId(`def`)
+                .setStyle(TextInputStyle.Short)
+                .setMaxLength(3)
+                .setRequired(true)
+                .setValue((ninja?.def) ? ninja.def : " ");
+
+                const defLabel = new LabelBuilder()
+                .setLabel(`DEF`)
+                .setDescription(`Base DEF of the ninja`)
+                .setTextInputComponent(def);
+
+                modal.addLabelComponents(hpLabel, atkLabel, defLabel);
 
             } else if(params.type == "s") {
                 modal.setTitle(`Edit ninja skills`);

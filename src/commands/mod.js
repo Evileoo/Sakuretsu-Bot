@@ -55,6 +55,17 @@ export const command = {
                 .setAutocomplete(true)
             )
         )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("subkage")
+            .setDescription("Promote or demote someone from subkage role in his village")
+            .addUserOption( (option) =>
+                option
+                .setName("member")
+                .setDescription("member to promote or demote")
+                .setRequired(true)
+            )
+        )
     )
     , async execute(interaction){
 
@@ -71,6 +82,9 @@ export const command = {
                 switch(interaction.options.getSubcommand()) {
                     case "change":
                         await changeVillage(interaction, command);
+                    break;
+                    case "subkage":
+                        await changePosition(interaction, command);
                     break;
                     default:
                     break;
@@ -167,6 +181,65 @@ export const command = {
 
             const flowChannel = await interaction.guild.channels.cache.get(village.flow);
             flowChannel.send({
+                embeds: [flowEmbed]
+            });
+        }
+
+        async function changePosition(interaction, params) {
+            // Checks
+            const target = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [params.member.id]);
+            const village = await db.getrow(`SELECT moderation FROM village WHERE tag = ?`, [target.village_tag]);
+            
+            if(!target || !target.village_tag || target.village_tag != executor.village_tag) {
+                return await interaction.reply({
+                    content: `This member is not from a village`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // Reply to interaction before it breaks
+            await interaction.reply({
+                content: `Promotion/Demotion successful`,
+                flags: MessageFlags.Ephemeral
+            });
+
+            // Fetch moderation channel
+            const moderation = await interaction.guild.channels.cache.get(village.moderation);
+
+            // Prepare embed
+            const flowEmbed = new EmbedBuilder()
+            .setTimestamp();
+
+            // Promote or demote
+            const member = await interaction.guild.members.cache.get(params.member.id);
+            if(member.roles.cache.has(globals.server.role.sub)) {
+                member.roles.remove(globals.server.role.sub);
+
+                moderation.permissionOverwrites.edit(params.member.id, {
+                    ViewChannel: false
+                });
+
+                flowEmbed
+                .setTitle(`A member has been demoted`)
+                .setDescription(`<@${params.member.id}> lost his/her sub kage position\nExecuted by <@${interaction.user.id}>`)
+                .setColor(globals.embed.red);
+            } else {
+                member.roles.add(globals.server.role.sub);
+
+                moderation.permissionOverwrites.edit(params.member.id, {
+                    ViewChannel: true
+                });
+
+                flowEmbed
+                .setTitle(`A member has been promoted`)
+                .setDescription(`<@${params.member.id}> got a sub kage position\nExecuted by <@${interaction.user.id}>`)
+                .setColor(globals.embed.green);
+            }
+            
+            // Send flow message
+            const villageChannel = await interaction.guild.channels.cache.get(village.flow);
+            
+            await villageChannel.send({
                 embeds: [flowEmbed]
             });
         }
