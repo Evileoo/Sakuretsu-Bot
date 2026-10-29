@@ -183,6 +183,8 @@ export const command = {
                 { name: `Sunday`, data: [] },
             ];
 
+            const now = new Date();
+
             for(const row of schedule) {
                 const start = row.period.split(" ")[0];
                 const end = row.period.split(" ")[1];

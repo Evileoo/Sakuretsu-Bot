@@ -214,7 +214,7 @@ async function editData(data, interaction) {
     }
 
     const modal = new ModalBuilder()
-    .setCustomId(`eventData${globals.separator}${eventData.id}`)
+    .setCustomId(`eventData${globals.separator}${eventData.event_id}`)
     .setTitle(`Event Data`);
 
     const input = new TextInputBuilder()
