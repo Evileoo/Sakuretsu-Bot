@@ -239,11 +239,9 @@ async function inHelperChannel(message) {
                 break;
                 case "cancel":
                     await lCancel(message);
-                    deleteMessage = false;
                 break;
                 case "finish":
                     await lFinish(message);
-                    deleteMessage = false;
                 break;
                 case "floor":
                     await lFloor(message);
@@ -261,8 +259,8 @@ async function inHelperChannel(message) {
     await updateList(message);
 
     // Delete the command message
-    //if(!deleteMessage || channel.id == globals.server.channel.bcHelp) await delayedMessageDelete(message, 10000);
-    if(!deleteMessage || (message && message.channel && message.channel.id == "1543548395891859506")) await delayedMessageDelete(message, 10000);
+    //if(deleteMessage || channel.id == globals.server.channel.bcHelp) await delayedMessageDelete(message, 10000);
+    if(deleteMessage || (message && message.channel && message.channel.id == "1543548395891859506")) await delayedMessageDelete(message, 10000);
 }
 
 async function setMaxFloor(message) {
