@@ -238,17 +238,21 @@ async function editPanel(channel, action) {
         const payload = { embeds: [missionBoard], files: [attachment] };
 
         if (action == "create") {
-            await channel.send(payload);
+            const message = await channel.send(payload);
+            await message.crosspost(); 
         } else if (action == "edit") {
             try {
                 const fetched = await channel.messages.fetch({ limit: 1 });
                 if (fetched.size > 0) {
-                    await fetched.last().edit(payload);
+                    const message = await fetched.last().edit(payload);
+                    await message.crosspost();
                 } else {
-                    await channel.send(payload);
+                    const message = await channel.send(payload);
+                    await message.crosspost();
                 }
             } catch (e) {
-                await channel.send(payload);
+                const message = await channel.send(payload);
+                await message.crosspost();
             }
         }
     }
