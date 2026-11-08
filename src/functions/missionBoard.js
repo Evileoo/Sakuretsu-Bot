@@ -239,13 +239,12 @@ async function editPanel(channel, action) {
 
         if (action == "create") {
             const message = await channel.send(payload);
-            await message.crosspost(); 
+            await message.crosspost();
         } else if (action == "edit") {
             try {
                 const fetched = await channel.messages.fetch({ limit: 1 });
                 if (fetched.size > 0) {
-                    const message = await fetched.last().edit(payload);
-                    await message.crosspost();
+                    await fetched.last().edit(payload);
                 } else {
                     const message = await channel.send(payload);
                     await message.crosspost();
