@@ -1,6 +1,29 @@
 import { ButtonStyle, EmbedBuilder, ButtonBuilder, ActionRowBuilder, MessageFlags, ChannelType, REST } from 'discord.js';
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
+import { docs } from './docs.js';
+
+// Current Blood Clash event data : [max floor, lobby size]
+async function getBcEventData() {
+    const event = await db.getrow(`SELECT event_name, event_data FROM events WHERE event_parent_name = 'Blood Clash' AND calendar_only = 0 AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
+    if(!event) return null;
+
+    const data = (event.event_data ?? "").split(globals.separator);
+    return {
+        name: event.event_name,
+        maxFloor: isNaN(parseInt(data[0])) ? null : parseInt(data[0]),
+        lobbySize: isNaN(parseInt(data[1])) ? null : parseInt(data[1])
+    };
+}
+
+// Delete a message of the bc channel without failing if it has already been deleted
+async function deleteBcMessage(guild, messageId) {
+    if(!messageId) return;
+
+    //const bcChannel = await guild.channels.fetch(globals.server.channel.bloodClash);
+    const bcChannel = await guild.channels.fetch("1573650151409721384").catch(() => null);
+    if(bcChannel) await bcChannel.messages.delete(messageId).catch(() => null);
+}
 
 async function filter(message) {
     // Don't filter bot messages
@@ -12,14 +35,14 @@ async function filter(message) {
 
     // Define which filter to apply
     //const ignore = channel.parentId != "1478130471585054893" && channel.parentId != "1509429572830236843";
-    const ignore = channel.parentId != "1504081529750556693" && channel.parentId != "1533555957009879211";
+    const ignore = channel.parentId != "1573639980964913162" && channel.parentId != "1533555957009879211";
     if(ignore) return;
     
     //if(channel.id == globals.server.channel.bloodClash) {
-    if(channel.id == "1543549008402714645") {
+    if(channel.id == "1573650151409721384") {
         await inBcChannel(message);
     //} else if(channel.id == globals.server.channel.bcHelp) {
-    } else if(channel.id == "1543548395891859506" || channel.parentId == "1533555957009879211") {
+    } else if(channel.id == "1573650154299326514" || channel.parentId == "1533555957009879211") {
         await inHelperChannel(message)
     } else {
         await notInBcChannel(message);
@@ -43,7 +66,7 @@ async function notInBcChannel(message) {
         
         // Create a spam row in db
         await db.insert(`INSERT INTO bc (r_id, state) VALUES (?, ?)`, [message.author.id, 2]);
-        applySanction(message);
+        await applySanction(message).catch(error => console.error(`[Blood Clash] Couldn't sanction ${message.author.id}: ${error.message}`));
     } else if(request.score > 35) {
         // create the component
         const yesButton = new ButtonBuilder()
@@ -62,7 +85,7 @@ async function notInBcChannel(message) {
         // Ask to mods if the message is a spam
         const channel = await message.guild.channels.fetch(globals.server.channel.automod);
         await channel.send({
-            content: `Is this message a blood clash help request ?\n> ${message.content}`,
+            content: `Is this message a blood clash help request ?\n${message.content.slice(0, 1800).split("\n").map(line => `> ${line}`).join("\n")}`,
             components: [decision]
         });
     }
@@ -92,14 +115,11 @@ async function inBcChannel(message) {
     }
 
     // Check if floor is above the max floor
-    const event = await db.getrow(`SELECT event_data FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
-    const eventData = event.event_data.split(`${globals.separator}`);
-    if(event) {
-        if(!isNaN(eventData[0]) && request.floor >= parseInt(eventData[0])) {
-            return await message.reply({
-                content: `Your request is above the max Blood Clash floor.`
-            });
-        }
+    const event = await getBcEventData();
+    if(event && event.maxFloor != null && request.floor >= event.maxFloor) {
+        return await message.reply({
+            content: `Your request is above the max Blood Clash floor (${event.maxFloor}).`
+        });
     }
 
     const pingAmount = message.mentions.users.size - (message.mentions.repliedUser && message.mentions.users.has(message.mentions.repliedUser.id) ? 1 : 0);
@@ -113,31 +133,7 @@ async function inBcChannel(message) {
     if(bc) {
 
         const member = await db.getrow(`SELECT ig_id, name FROM member WHERE id = ?`, [message.author.id]);
-        const schedule = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE id = ?`, [message.author.id]);
-        let alerts = "\n";
-
-        if(!isNaN(eventData[0]) && request.floor >= parseInt(eventData[0])) {
-            return await message.reply({
-                content: `You can't ask for help above the max bc floor (${eventData[0]})`
-            });
-        }
-
-        if(!member || member.name == null) {
-            alerts += `To increase your chances of getting picked up, please give your name to the bot with the \`my name\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540794465055412314 \n`
-        }
-
-        if(!member || member.ig_id == null) {
-            alerts += `To ease the communication with helpers, please give your in-game ID to the bot with the \`/my id\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540796816184971398 \n`;
-        }
-
-        if(!schedule) {
-            alerts += `To increase your chances of getting picked up, please give to the bot the time when you're usually available to do in game actions with the \`/schedule setup\` command. https://discord.com/channels/1478130301552033982/1540785204527104071/1541083076459765901 \n`
-        }
-
-        if(alerts != `\n`) {
-            alerts += `PC Command tutorial : https://discord.com/channels/1478130301552033982/1533026207753437318 \nPhone Command tutorial : https://discord.com/channels/1478130301552033982/1533025962336190654`
-        }
-
+        const alerts = await profileAlerts(message.author.id, member);
 
         if(request.floor == bc.floor) {
             await message.reply({
@@ -161,37 +157,15 @@ async function inBcChannel(message) {
             content: `Request updated, new floor is ${request.floor}.${alerts}`
         });
 
-        await updateList(message);
+        await updateList(message.guild);
     } else {
 
         const member = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
-        const schedule = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE id = ?`, [message.author.id]);
-        
-        let alerts = `\n`;
         if(!member) {
             await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [message.author.id, message.author.displayName ?? message.author.username]);
-            alerts += `To increase your chances of getting picked up, please give your name to the bot with the \`my name\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540794465055412314 \n`
-            alerts += `To ease the communication with helpers, please give your in-game ID to the bot with the \`/my id\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540796816184971398 \n`;
-            alerts += `To increase your chances of getting picked up, please give to the bot the time when you're usually available to do in game actions with the \`/schedule setup\` command. https://discord.com/channels/1478130301552033982/1540785204527104071/1541083076459765901 \n`
-            alerts += `PC Command tutorial : https://discord.com/channels/1478130301552033982/1533026207753437318 \nPhone Command tutorial : https://discord.com/channels/1478130301552033982/1533025962336190654`
-        } else {
-            if(!member || member.name == null) {
-                alerts += `To increase your chances of getting picked up, please give your name to the bot with the \`my name\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540794465055412314 \n`
-            }
-
-            if(!member || member.ig_id == null) {
-                alerts += `To ease the communication with helpers, please give your in-game ID to the bot with the \`/my id\` command. https://discord.com/channels/1478130301552033982/1540783658238222478/1540796816184971398 \n`;
-            }
-
-            if(!schedule) {
-                alerts += `To increase your chances of getting picked up, please give to the bot the time when you're usually available to do in game actions with the \`/schedule setup\` command. https://discord.com/channels/1478130301552033982/1540785204527104071/1541083076459765901 \n`
-            }
-
-            if(alerts != `\n`) {
-                alerts += `PC Command tutorial : https://discord.com/channels/1478130301552033982/1533026207753437318 \nPhone Command tutorial : https://discord.com/channels/1478130301552033982/1533025962336190654\nIf you're struggling with commands, ask in https://discord.com/channels/1478130301552033982/1555977853223436468 for a moderator to edit these informations by giving a screenshot of your in-game account`
-            }
         }
-
+        // A new member still gets the advices about his in-game name and ID
+        const alerts = await profileAlerts(message.author.id, member);
 
         await db.insert(`INSERT INTO bc (r_id, floor, state) VALUES (?, ?, 0)`, [message.author.id, request.floor]);
 
@@ -199,8 +173,22 @@ async function inBcChannel(message) {
             content: `Request created. You don't need to send an other one this week except if your floor changes.${alerts}`
         });
 
-        await updateList(message);
+        await updateList(message.guild);
     }
+}
+
+// Advice given with a help request when the profile of the member is incomplete
+async function profileAlerts(id, member) {
+    const schedule = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE id = ?`, [id]);
+    const alerts = [];
+
+    if(!member || member.name == null) alerts.push(`- Give your in-game name with \`/my name\` : helpers pick known players first`);
+    if(!member || member.ig_id == null) alerts.push(`- Give your in-game ID with \`/my id\` : helpers will find you faster`);
+    if(!schedule) alerts.push(`- Give the time when you're usually available with \`/schedule edit\` (${docs.mention(`schedule`, `see the documentation`)})`);
+
+    if(alerts.length == 0) return ``;
+
+    return `\n${alerts.join(`\n`)}\nHow to do it : ${docs.mention(`profile`)}. How to use commands : ${docs.mention(`start-here`)}`;
 }
 
 async function inHelperChannel(message) {
@@ -256,11 +244,11 @@ async function inHelperChannel(message) {
     }
 
     // Update the request list
-    await updateList(message);
+    await updateList(message.guild);
 
     // Delete the command message
     //if(deleteMessage || channel.id == globals.server.channel.bcHelp) await delayedMessageDelete(message, 10000);
-    if(deleteMessage || (message && message.channel && message.channel.id == "1543548395891859506")) await delayedMessageDelete(message, 10000);
+    if(deleteMessage || (message && message.channel && message.channel.id == "1573650154299326514")) await delayedMessageDelete(message, 10000);
 }
 
 async function setMaxFloor(message) {
@@ -286,11 +274,12 @@ async function setMaxFloor(message) {
         return;
     }
 
-    const event = await db.getrow(`SELECT * FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
+    const event = await getBcEventData();
+    const maxFloor = event?.maxFloor ?? globals.vars.maxBcFloor;
 
-    if(event && parseInt(split[2]) > event.event_data.split(" ")[0]) {
+    if(parseInt(split[2]) > maxFloor) {
         const reply = await message.reply({
-            content: `You can't set up a max floor above the current in game max floor (${globals.vars.maxBcFloor})`
+            content: `You can't set up a max floor above the current in game max floor (${maxFloor})`
         });
         delayedMessageDelete(reply, 10000);
         return;
@@ -350,11 +339,19 @@ async function help(message) {
 
     const helper = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
 
-    const request = await db.getrow(`SELECT * FROM bc WHERE id = ?`, [split[1]]);
+    const request = await db.getrow(`SELECT * FROM bc WHERE id = ? AND state <> 2`, [split[1]]);
 
     if(!request) {
         const reply = await message.reply({
             content: `This request doesn't exist, pick up a number from the "Request ID" column`
+        });
+        delayedMessageDelete(reply, 10000);
+        return;
+    }
+
+    if(!helper) {
+        const reply = await message.reply({
+            content: `First, register into the bot by typing the \`my name\` command`
         });
         delayedMessageDelete(reply, 10000);
         return;
@@ -368,9 +365,9 @@ async function help(message) {
         return;
     }
 
-    if(!helper) {
+    if(request.state == 1) {
         const reply = await message.reply({
-            content: `First, register into the bot by typing the \`my name\` command`
+            content: `This member is already being helped`
         });
         delayedMessageDelete(reply, 10000);
         return;
@@ -394,10 +391,10 @@ async function help(message) {
         return;
     }
 
-    const lobby = await db.getval(`SELECT * FROM lobby WHERE host = ?`, [message.author.id]);
+    const lobby = await db.getrow(`SELECT * FROM lobby WHERE host = ?`, [message.author.id]);
 
     if(lobby) {
-        if(lobby.max_floor <= request.floor) {
+        if(parseInt(lobby.max_floor) <= request.floor) {
             const reply = await message.reply({
                 content: `Your lobby isn't enough to get this member higher. Help someone else`
             });
@@ -414,13 +411,12 @@ async function help(message) {
         }
     }
 
-    const event = await db.getrow(`SELECT event_name, event_data FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
+    const event = await getBcEventData();
 
-    if(event) {
-        const bcData = event.event_data.split(globals.separator);
-        const helping = await db.getval(`SELECT COUNT(*) FROM bc WHERE h_id = ?`, [message.author.id]);
+    if(event && event.lobbySize != null) {
+        const helping = await db.getval(`SELECT COUNT(*) FROM bc WHERE h_id = ? AND state = 1`, [message.author.id]);
 
-        if(bcData[1] == helping) {
+        if(helping >= event.lobbySize) {
             const reply = await message.reply({
                 content: `Your lobby is full. You can't add anyone else yet.`
             });
@@ -442,7 +438,7 @@ async function help(message) {
         await channel.permissionOverwrites.edit(helper.id, {
             ViewChannel: true
         });
-        await channel.permissionOverwrites.edit(helped.id, {
+        await channel.permissionOverwrites.edit(request.r_id, {
             ViewChannel: true
         });
 
@@ -463,8 +459,8 @@ async function help(message) {
 
     } else {
         // Add the helped member into the lobby
-        channel = await message.guild.channels.fetch(lobby);
-        await channel.permissionOverwrites.edit(helped.id, {
+        channel = await message.guild.channels.fetch(lobby.id);
+        await channel.permissionOverwrites.edit(request.r_id, {
             ViewChannel: true
         });
 
@@ -498,9 +494,9 @@ async function cancel(message) {
 
     let request;
     if(message.mentions.users.first()) {
-        request = await db.getrow(`SELECT * FROM bc WHERE r_id = ?`, [message.mentions.users.first().id]);
+        request = await db.getrow(`SELECT * FROM bc WHERE r_id = ? AND state = 1`, [message.mentions.users.first().id]);
     } else {
-        request = await db.getrow(`SELECT * FROM bc WHERE id = ?`, [split[1]]);
+        request = await db.getrow(`SELECT * FROM bc WHERE id = ? AND state = 1`, [split[1]]);
     }
 
     if(!request || (request.h_id != message.author.id && request.r_id != message.author.id)) {
@@ -511,18 +507,19 @@ async function cancel(message) {
         return;
     }
 
-    const helped = await db.getrow(`SELECT * FROM member WHERE id = ?`, [request.r_id]);
-    await db.update(`UPDATE bc SET state = 0 WHERE id = ?`, [request.id]);
+    await db.update(`UPDATE bc SET state = 0, h_id = NULL, channel_id = NULL WHERE id = ?`, [request.id]);
 
-    const channel = await message.guild.channels.fetch(request.channel_id);
-    channel.permissionOverwrites.edit(helped.id, {
-        ViewChannel: false
-    });
+    const channel = request.channel_id ? await message.guild.channels.fetch(request.channel_id).catch(() => null) : null;
+    if(channel) {
+        await channel.permissionOverwrites.edit(request.r_id, {
+            ViewChannel: false
+        });
 
-    // send message
-    await channel.send({
-        content: `<@${request.r_id}> left the lobby.`
-    });
+        // send message
+        await channel.send({
+            content: `<@${request.r_id}> left the lobby.`
+        });
+    }
 
     const reply = await message.reply({
         content: `Help cancelled`
@@ -545,9 +542,9 @@ async function finish(message) {
 
     let request;
     if(message.mentions.users.first()) {
-        request = await db.getrow(`SELECT * FROM bc WHERE r_id = ?`, [message.mentions.users.first().id]);
+        request = await db.getrow(`SELECT * FROM bc WHERE r_id = ? AND state = 1`, [message.mentions.users.first().id]);
     } else {
-        request = await db.getrow(`SELECT * FROM bc WHERE id = ?`, [split[1]]);
+        request = await db.getrow(`SELECT * FROM bc WHERE id = ? AND state = 1`, [split[1]]);
     }
 
     if(!request || (request.h_id != message.author.id && request.r_id != message.author.id)) {
@@ -559,37 +556,41 @@ async function finish(message) {
     }
 
     // Check if floor is above the max floor
-    const event = await db.getrow(`SELECT event_data FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
-    if(event) {
-        const eventData = event.event_data.split(`${globals.separator}`);
+    const event = await getBcEventData();
+    const maxFloor = event?.maxFloor ?? globals.vars.maxBcFloor;
 
-        if(!isNaN(eventData[0]) && parseInt(split[2]) > parseInt(eventData[0])) {
-            const reply = await message.reply({
-                content: `You can't close above the max BC floor`
-            });
-            delayedMessageDelete(reply, 10000);
-            return;
-        }
+    if(event && event.maxFloor != null && parseInt(split[2]) > event.maxFloor) {
+        const reply = await message.reply({
+            content: `You can't close above the max BC floor`
+        });
+        delayedMessageDelete(reply, 10000);
+        return;
     }
 
-    const helped = await db.getrow(`SELECT * FROM member WHERE id = ?`, [request.r_id]);
-
-    if(parseInt(split[2]) < globals.vars.maxBcFloor) {
-        await db.update(`UPDATE bc SET state = 0, floor = ? WHERE id = ?`, [parseInt(split[2])+1, request.id]);
+    if(parseInt(split[2]) < maxFloor) {
+        await db.update(`UPDATE bc SET state = 0, h_id = NULL, channel_id = NULL, floor = ? WHERE id = ?`, [parseInt(split[2])+1, request.id]);
     } else {
         await db.delete(`DELETE FROM bc WHERE id = ?`, [request.id]);
     }
 
-    const channel = await message.guild.channels.fetch(request.channel_id);
-    await channel.permissionOverwrites.edit(helped.id, {
+    const channel = request.channel_id ? await message.guild.channels.fetch(request.channel_id).catch(() => null) : null;
+    if(channel) await channel.permissionOverwrites.edit(request.r_id, {
         ViewChannel: false
     });
 
     const reply = await message.reply({
-        content: `Session finished for <@${helped.id}>`
+        content: `Session finished for <@${request.r_id}>`
     });
     delayedMessageDelete(reply, 10000);
     return;
+}
+
+// Member targeted by a blacklist/whitelist command : mentioned member, or requester of the given request ID
+async function getTargetId(message, value) {
+    if(message.mentions.users.first()) return message.mentions.users.first().id;
+
+    const request = await db.getrow(`SELECT r_id FROM bc WHERE id = ? OR r_id = ? LIMIT 1`, [value, value]);
+    return request ? request.r_id : null;
 }
 
 async function blacklist(message) {
@@ -604,11 +605,14 @@ async function blacklist(message) {
         return;
     }
 
-    const request = await db.getrow(`SELECT * FROM bc WHERE r_id = ? OR id = ?`, [split[1], split[1]]);
-
-    let id;
-    if(!request) message.mentions.users.first().id;
-    else id = request.r_id;
+    const id = await getTargetId(message, split[1]);
+    if(!id) {
+        const reply = await message.reply({
+            content: `This request doesn't exist, pick up a number from the "Request ID" column`
+        });
+        delayedMessageDelete(reply, 10000);
+        return;
+    }
     
 
     const isBl = await db.getval(`SELECT 1 FROM blacklist WHERE executor = ? AND target = ?`, [message.author.id, id]);
@@ -634,17 +638,20 @@ async function whitelist(message) {
 
     if(split.length != 2 || (isNaN(split[1]) && !message.mentions.users.first())) {
         const reply = await message.reply({
-            content: `Please follow the given format : "blacklist 4" or "blacklist @member". replace for by the ID of the request or @member by pinging the member you want to blacklist. You won't be able to help a blacklisted member`
+            content: `Please follow the given format : "whitelist 4" or "whitelist @member". replace 4 by the ID of the request or @member by pinging the member you want to whitelist.`
         });
         delayedMessageDelete(reply, 10000);
         return;
     }
 
-    const request = await db.getrow(`SELECT * FROM bc WHERE r_id = ? OR id = ?`, [split[1], split[1]]);
-
-    let id;
-    if(!request) message.mentions.users.first().id;
-    else id = request.r_id;
+    const id = await getTargetId(message, split[1]);
+    if(!id) {
+        const reply = await message.reply({
+            content: `This request doesn't exist, pick up a number from the "Request ID" column`
+        });
+        delayedMessageDelete(reply, 10000);
+        return;
+    }
     
 
     const isBl = await db.getval(`SELECT 1 FROM blacklist WHERE executor = ? AND target = ?`, [message.author.id, id]);
@@ -665,7 +672,8 @@ async function whitelist(message) {
 }
 
 async function lOpen(message) {
-    const helpChannel = await db.getval(`SELECT DISTINCT channel_id FROM bc WHERE h_id = ?`, [message.author.id]);
+    const existingLobby = await db.getrow(`SELECT id FROM lobby WHERE host = ?`, [message.author.id]);
+    const helpChannel = existingLobby ? existingLobby.id : null;
     const helper = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
 
     if(!helper || !helper.max_floor) {
@@ -698,7 +706,7 @@ async function lOpen(message) {
             type: ChannelType.GuildText,
             parent: "1533555957009879211"
         });
-        channel.permissionOverwrites.edit(message.author.id, {
+        await channel.permissionOverwrites.edit(message.author.id, {
             ViewChannel: true
         });
 
@@ -710,7 +718,7 @@ async function lOpen(message) {
         });
 
         await channel.send({
-            content: `Here are the commands you can use here. No need to do a \`/\` before, you type them in chat normally.\n- **id 123** : replace the 123 by your ingame ID\n- **cancel @member** : the @member means you have to ping the member you want to cancel. It will put him back in the help requests pool without changing his floor.\n- **finish @member 1500** : replace @member by pinging the member you finished helping. Replace 1500 by the floor you stopped at.\n- **open lobby** : while make this lobby public until full. People will be able to join.\n- **close lobby** : make this lobby private again.\n- **lobby floor 1550** : increase the max floor you can help people at. Let's say your max floor is 1450 and you're with someone who can get to 1550, do this command to be able to help people above 1450 without changing your personal max floor.\n- **lobby end 1500** : completely closes the lobby for every member in it. The floor is optionnal, if you don't give it, it will just count as a *cancel* for every member in`
+            content: `Here are the commands you can use here. No need to do a \`/\` before, you type them in chat normally.\n- **id 123** : replace the 123 by your ingame ID\n- **cancel @member** : the @member means you have to ping the member you want to cancel. It will put him back in the help requests pool without changing his floor.\n- **finish @member 1500** : replace @member by pinging the member you finished helping. Replace 1500 by the floor you stopped at.\n- **lobby open** : while make this lobby public until full. People will be able to join.\n- **lobby close** : make this lobby private again.\n- **lobby floor 1550** : increase the max floor you can help people at. Let's say your max floor is 1450 and you're with someone who can get to 1550, do this command to be able to help people above 1450 without changing your personal max floor.\n- **lobby finish 1500** : completely closes the lobby for every member in it.\n- **lobby cancel** : ends a lobby without updating helped members floors`
         });
 
         const member = await db.getrow(`SELECT * FROM member WHERE id = ?`, [message.author.id]);
@@ -722,7 +730,7 @@ async function lOpen(message) {
 
     // Send a message in bc channel
     //const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
-    const bcChannel = await message.guild.channels.fetch("1543549008402714645");
+    const bcChannel = await message.guild.channels.fetch("1573650151409721384");
 
     const joinButton = new ButtonBuilder()
     .setCustomId(`bcLobby${globals.separator}j${globals.separator}${message.author.id}`)
@@ -748,13 +756,13 @@ async function lOpen(message) {
     
 
     // Send a message in the lobby confirming it's open
-    channel.send({
+    await channel.send({
         content: `### 🚨 The lobby is now public 🚨`
     });
-    
+
     // Close lobby explanations
-    channel.send({
-        content: `To close the lobby, type "lobby close" or click on the "close" button on the join message in <#${globals.server.channel.bloodClash}>`
+    await channel.send({
+        content: `To close the lobby, type "lobby close" or click on the "close" button on the join message in <#${bcChannel.id}>`
     });
 }
 
@@ -771,14 +779,10 @@ async function lClose(message) {
 
     await db.update(`UPDATE lobby SET privacy = 0, message = NULL WHERE host = ?`, [message.author.id]);
 
-    const lobbyChannel = await message.guild.channels.fetch(lobby.id);
-    //const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
-    const bcChannel = await message.guild.channels.fetch("1543549008402714645");
+    await deleteBcMessage(message.guild, lobby.message);
 
-    const bcMessage = await bcChannel.messages.fetch(lobby.message);
-    await bcMessage.delete();
-
-    await lobbyChannel.send({
+    const lobbyChannel = await message.guild.channels.fetch(lobby.id).catch(() => null);
+    if(lobbyChannel) await lobbyChannel.send({
         content : `### 🚨 The lobby is now private 🚨`
     });
 }
@@ -794,19 +798,13 @@ async function lCancel(message) {
         return;
     }
 
-    if(lobby.message) {
-        //const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
-        const bcChannel = await message.guild.channels.fetch("1543549008402714645");
-
-        const bcMessage = await bcChannel.messages.fetch(lobby.message);
-        await bcMessage.delete();
-    }
+    await deleteBcMessage(message.guild, lobby.message);
 
     await db.update(`UPDATE bc SET state = 0, h_id = NULL, channel_id = NULL WHERE h_id = ?`, [message.author.id]);
     await db.delete(`DELETE FROM lobby WHERE host = ?`, [message.author.id]);
 
-    const channel = await message.guild.channels.fetch(lobby.id);
-    await channel.delete();
+    const channel = await message.guild.channels.fetch(lobby.id).catch(() => null);
+    if(channel) await channel.delete();
 }
 
 async function lFinish(message) {
@@ -833,41 +831,36 @@ async function lFinish(message) {
     }
 
     // Check if floor is above the max floor
-    const event = await db.getrow(`SELECT event_data FROM events WHERE event_parent_name = 'Blood Clash' AND CURRENT_TIMESTAMP() >= event_time_start AND CURRENT_TIMESTAMP < event_time_end`);
-    if(event) {
-        const eventData = event.event_data.split(`${globals.separator}`);
+    const event = await getBcEventData();
+    const maxFloor = event?.maxFloor ?? globals.vars.maxBcFloor;
 
-        if(!isNaN(eventData[0]) && parseInt(split[2]) > parseInt(eventData[0])) {
-            const reply = await message.reply({
-                content: `You can't close above the max BC floor`
-            });
-            delayedMessageDelete(reply, 10000);
-            return;
-        }
+    if(event && event.maxFloor != null && parseInt(split[2]) > event.maxFloor) {
+        const reply = await message.reply({
+            content: `You can't close above the max BC floor`
+        });
+        delayedMessageDelete(reply, 10000);
+        return;
     }
 
-    const helping = await db.getall(`SELECT floor, id FROM bc WHERE h_id = ?`, [message.author.id]);
+    const helping = await db.getall(`SELECT floor, id FROM bc WHERE h_id = ? AND state = 1`, [message.author.id]);
 
     for(const helped of helping) {
         if(helped.floor > parseInt(split[2])) {
             await db.update(`UPDATE bc SET state = 0, h_id = NULL, channel_id = NULL WHERE id = ?`, [helped.id]);
-        } else {
+        } else if(parseInt(split[2]) < maxFloor) {
             await db.update(`UPDATE bc SET state = 0, h_id = NULL, channel_id = NULL, floor = ? WHERE id = ?`, [parseInt(split[2])+1, helped.id]);
+        } else {
+            // Max floor reached, the request is done
+            await db.delete(`DELETE FROM bc WHERE id = ?`, [helped.id]);
         }
     }
-    
-    if(lobby.message) {
-        //const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
-        const bcChannel = await message.guild.channels.fetch("1543549008402714645");
 
-        const bcMessage = await bcChannel.messages.fetch(lobby.message);
-        await bcMessage.delete();
-    }
-    
+    await deleteBcMessage(message.guild, lobby.message);
+
     await db.delete(`DELETE FROM lobby WHERE host = ?`, [message.author.id]);
 
-    const channel = await message.guild.channels.fetch(lobby.id);
-    await channel.delete();
+    const channel = await message.guild.channels.fetch(lobby.id).catch(() => null);
+    if(channel) await channel.delete();
 }
 
 async function lFloor(message) {
@@ -1009,29 +1002,45 @@ async function applySanction(message) {
     }
 }
 
-async function updateList(message) {
+async function updateList(guild) {
     // Get data to display
     const requests = await db.getall(`SELECT id, r_id, floor FROM bc WHERE state = 0 ORDER BY floor`);
     const helping = await db.getall(`SELECT id, r_id, h_id FROM bc WHERE state = 1 ORDER BY h_id, floor`);
 
-    // Create the "to help" embed
-    let idColumnR = "", nameColumnR = "", floorColumnR = "";
-    let idColumnH = "", nameColumnH = "", helperColumnH = "";
-    for(const request of requests) {
-        idColumnR += `${request.id}.\n`;
-        nameColumnR += `<@${request.r_id}>\n`;
-        floorColumnR += `floor ${request.floor}\n`;
-    }
-    for(const help of helping) {
-        idColumnH += `${help.id}.\n`;
-        nameColumnH += `<@${help.r_id}>\n`;
-        helperColumnH += `<@${help.h_id}>\n`;
-    }
+    // Build the columns, stopping before a column gets too long for an embed field
+    const buildColumns = (rows, columns) => {
+        const values = columns.map(() => "");
+        let hidden = 0;
+
+        for(const row of rows) {
+            const lines = columns.map(column => `${column(row)}\n`);
+            if(values.some((value, i) => value.length + lines[i].length > 1000)) {
+                hidden++;
+                continue;
+            }
+            lines.forEach((line, i) => values[i] += line);
+        }
+
+        if(hidden > 0) values[0] += `+${hidden} more`;
+        return values.map(value => value || `\t`);
+    };
+
+    const [idColumnR, nameColumnR, floorColumnR] = buildColumns(requests, [
+        request => `${request.id}.`,
+        request => `<@${request.r_id}>`,
+        request => `floor ${request.floor}`
+    ]);
+    const [idColumnH, nameColumnH, helperColumnH] = buildColumns(helping, [
+        help => `${help.id}.`,
+        help => `<@${help.r_id}>`,
+        help => `<@${help.h_id}>`
+    ]);
+
     const embed = new EmbedBuilder()
     .setTitle(`Blood Clash help requests`)
     .addFields(
         { name: `HELP REQUESTS`, value: `\t`, inline: false },
-        { name: `Request ID`, value: idColumnR || `\t`, inline: true },
+        { name: `Request ID`, value: idColumnR, inline: true },
         { name: `Requester`, value: nameColumnR, inline: true },
         { name: `Starting floor`, value: floorColumnR, inline: true },
         { name: `CURRENTLY HELPED`, value: `\t`, inline: false },
@@ -1041,48 +1050,46 @@ async function updateList(message) {
     )
     .setTimestamp();
 
-    // Create the "how to help button"
-    const howToHelp = new ButtonBuilder()
-    .setCustomId(`howToHelp${globals.separator}1${globals.separator}s`)
-    .setLabel(`How to help ?`)
-    .setStyle(ButtonStyle.Success);
+    // "How to help ?" opens the documentation
+    const helpUrl = docs.url(`blood-clash-help`);
+    const row = helpUrl ? new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+        .setLabel(`How to help ?`)
+        .setStyle(ButtonStyle.Link)
+        .setURL(helpUrl)
+    ) : null;
 
-    const row = new ActionRowBuilder()
-    .addComponents(howToHelp);
+    const payload = {
+        embeds: [embed],
+        components: row ? [row] : []
+    };
 
     // Delete all the messages in the channel
-    //const channel = await message.guild.channels.fetch(globals.server.channel.bcHelp);
-    const channel = await message.guild.channels.fetch("1543548395891859506");
+    //const channel = await guild.channels.fetch(globals.server.channel.bcHelp);
+    const channel = await guild.channels.fetch("1573650154299326514");
     const fetchedMessages = await channel.messages.fetch({ limit: 100 });
 
-    if (fetchedMessages.size > 0) {
+    if (fetchedMessages.size == 0) {
+        await channel.send(payload);
+        return;
+    }
 
-        const oldestMessage = fetchedMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp).first();
+    const oldestMessage = fetchedMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp).first();
 
-        if (oldestMessage.author.id == message.client.user.id) {
-            oldestMessage.edit({
-                embeds: [embed],
-                components: [row]
-            });
-        } else {
-            await channel.bulkDelete(fetchedMessages, true);
-
-            await channel.send({
-                embeds: [embed],
-                components: [row]
-            });
-        }
+    if (oldestMessage.author.id == guild.client.user.id) {
+        await oldestMessage.edit(payload);
+    } else {
+        await channel.bulkDelete(fetchedMessages, true);
+        await channel.send(payload);
     }
 }
 
 async function delayedMessageDelete(message, milliseconds) {
-    // Wait 20 seconds and delete command and answer
+    // Wait and delete command and answer
     await new Promise(resolve => setTimeout(resolve, milliseconds));
 
-    
-    if(message && message.guild.channels.fetch(message.channel.id)) {
-        await message.delete();
-    }
+    // The message (or its channel, like a closed lobby) may already be deleted
+    if(message) await message.delete().catch(() => null);
 }
 
-export const bc = { filter, applySanction }
+export const bc = { filter, applySanction, updateList, getBcEventData }

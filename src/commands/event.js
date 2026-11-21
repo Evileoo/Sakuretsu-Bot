@@ -1,8 +1,7 @@
-import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags, TextInputStyle } from 'discord.js';
+import { SlashCommandBuilder, PermissionsBitField, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, LabelBuilder } from 'discord.js';
 import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
-import fs, { glob } from 'fs';
-import https from 'https';
+import { calendar } from '../functions/calendar.js';
 import { globals } from '../globals.js';
 
 export const command = {
@@ -20,6 +19,7 @@ export const command = {
             .setDescription("Event name")
             .setRequired(true)
             .setAutocomplete(true)
+            .setMaxLength(200)
         )
         .addStringOption( (option) =>
             option
@@ -52,6 +52,7 @@ export const command = {
             .setName("periodicity")
             .setDescription("place as '*' if it doesn't matter, format: Y M D H M S")
             .setRequired(false)
+            .setMaxLength(19)
         )
         .addRoleOption(option =>
             option
@@ -64,6 +65,27 @@ export const command = {
             .setName("data")
             .setDescription("Custom data of the event")
             .setRequired(false)
+            .setMaxLength(255)
+        )
+        .addBooleanOption(option =>
+            option
+            .setName("calendar_only")
+            .setDescription("Only shown in the calendar: not in the mission board, no reminder")
+            .setRequired(false)
+        )
+        .addStringOption(option =>
+            option
+            .setName("color")
+            .setDescription("Color in the calendar (default: always the same color for the same name)")
+            .setRequired(false)
+            .addChoices(
+                { name: 'Blue', value: 'blue' },
+                { name: 'Green', value: 'green' },
+                { name: 'Purple', value: 'purple' },
+                { name: 'Red', value: 'red' },
+                { name: 'Orange', value: 'orange' },
+                { name: 'Teal', value: 'teal' },
+            )
         )
     )
     .addSubcommand( (subcommand) =>
@@ -81,12 +103,45 @@ export const command = {
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("calendar")
-        .setDescription("Upload the ingame calendar")
+        .setDescription("How an event is shown in the calendar: logo, color, calendar only")
+        .addStringOption( (option) =>
+            option
+            .setName("name")
+            .setDescription("Event name, pick it from the list")
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
         .addAttachmentOption( (option) =>
             option
-            .setName("image")
-            .setDescription("Screenshot of the ingame calendar")
-            .setRequired(true)
+            .setName("logo")
+            .setDescription("Logo of the event (image, used for every event with this name)")
+            .setRequired(false)
+        )
+        .addBooleanOption( (option) =>
+            option
+            .setName("remove_logo")
+            .setDescription("Remove the logo of the event")
+            .setRequired(false)
+        )
+        .addStringOption( (option) =>
+            option
+            .setName("color")
+            .setDescription("Color in the calendar")
+            .setRequired(false)
+            .addChoices(
+                { name: 'Blue', value: 'blue' },
+                { name: 'Green', value: 'green' },
+                { name: 'Purple', value: 'purple' },
+                { name: 'Red', value: 'red' },
+                { name: 'Orange', value: 'orange' },
+                { name: 'Teal', value: 'teal' },
+            )
+        )
+        .addBooleanOption( (option) =>
+            option
+            .setName("calendar_only")
+            .setDescription("Only shown in the calendar: not in the mission board, no reminder")
+            .setRequired(false)
         )
     )
     .addSubcommand( (subcommand) =>
@@ -111,7 +166,9 @@ export const command = {
             endDate: interaction.options.getString("end_date") ?? null,
             periodicity: interaction.options.getString("periodicity") ?? null,
             role: interaction.options.getRole("role") ? `<@&${interaction.options.getRole("role").id}>` : null,
-            data: interaction.options.getString("data") ?? null
+            data: interaction.options.getString("data") ?? null,
+            calendarOnly: interaction.options.getBoolean("calendar_only") ?? false,
+            color: interaction.options.getString("color") ?? null
         };
 
         const eventRemove = (interaction.options.getSubcommand() != "remove") ? null : {
@@ -119,53 +176,80 @@ export const command = {
         };
 
         const eventCalendar = (interaction.options.getSubcommand() != "calendar") ? null : {
-            calendar: interaction.options.getAttachment("image") ?? null
+            name: interaction.options.getString("name"),
+            logo: interaction.options.getAttachment("logo") ?? null,
+            removeLogo: interaction.options.getBoolean("remove_logo") ?? false,
+            color: interaction.options.getString("color") ?? null,
+            calendarOnly: interaction.options.getBoolean("calendar_only")
         };
 
         const eventData = (interaction.options.getSubcommand() != "data") ? null : {
             name: interaction.options.getString("name") ?? null
         };
 
-        // Get guild and channel objects
-        const guild = await interaction.client.guilds.cache.get(globals.server.id);
-        //const channel = await guild.channels.cache.get(globals.server.channel.missionBoard);
-        const channel = await guild.channels.cache.get("1485202060973576212");
+        // Get the mission board channel
+        //const channel = await interaction.guild.channels.fetch(globals.server.channel.missionBoard);
+        const channel = await interaction.guild.channels.fetch("1573650148519706726");
 
         switch(interaction.options.getSubcommand()){
             case "add":
+                const error = checkEvent(eventAdd);
+                if(error) {
+                    return await interaction.reply({
+                        content: error,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
                 await addEvent(eventAdd);
 
                 await mb.editPanel(channel, "edit");
 
-                await interaction.reply({
-                    content: `Event added`,
-                    flags: MessageFlags.Ephemeral
+                await interaction.editReply({
+                    content: `Event added`
                 });
             break;
             case "remove":
-                await removeEvent(eventRemove);
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const removed = await removeEvent(eventRemove);
 
                 await mb.editPanel(channel, "edit");
 
-                await interaction.reply({
-                    content: `Event removed`,
-                    flags: MessageFlags.Ephemeral
+                await interaction.editReply({
+                    content: removed > 0 ? `Event removed` : `Unknown event, pick it from the list`
                 });
             break;
             case "calendar":
-                await getCalendar(eventCalendar);
+                const exists = await db.getval(`SELECT COUNT(*) FROM events WHERE event_name = ?`, [eventCalendar.name]);
+                if(exists == 0) {
+                    return await interaction.reply({
+                        content: `Unknown event, pick it from the list`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                if(eventCalendar.logo && (!eventCalendar.logo.contentType || !eventCalendar.logo.contentType.startsWith("image/"))) {
+                    return await interaction.reply({
+                        content: `The logo must be an image`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const changes = await editCalendarSettings(eventCalendar);
 
                 await mb.editPanel(channel, "edit");
 
-                await interaction.reply({
-                    content: `Image uploaded`,
-                    flags: MessageFlags.Ephemeral
+                await interaction.editReply({
+                    content: changes.length > 0 ? `Calendar updated : ${changes.join(", ")}` : `Nothing to change: give a logo, a color or the calendar only option`
                 });
             break;
             case "data":
                 await editData(eventData, interaction);
-
-                await mb.editPanel(channel, "edit");
             break;
             default:
             break;
@@ -173,35 +257,69 @@ export const command = {
     }
 }
 
+// Check the given event data, returns an error message or null
+function checkEvent(data) {
+    const dateFormat = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
+
+    if(!dateFormat.test(data.date) || isNaN(new Date(data.date.replace(" ", "T") + "Z").getTime())) {
+        return `The start date must follow this format : YYYY-MM-DD HH:MM:SS`;
+    }
+
+    if(data.endDate) {
+        if(!dateFormat.test(data.endDate) || isNaN(new Date(data.endDate.replace(" ", "T") + "Z").getTime())) {
+            return `The end date must follow this format : YYYY-MM-DD HH:MM:SS`;
+        }
+
+        if(new Date(data.endDate.replace(" ", "T") + "Z") <= new Date(data.date.replace(" ", "T") + "Z")) {
+            return `The end date must be after the start date`;
+        }
+    }
+
+    if(data.periodicity) {
+        const parts = data.periodicity.trim().split(/\s+/);
+        if(parts.length != 6 || parts.some(p => p != "*" && !/^\d+$/.test(p)) || parts.every(p => p == "*" || p == "0")) {
+            return `The periodicity must follow this format : Y M D H M S, with '*' when it doesn't matter (ex: \`* * 7 * * *\` for every week)`;
+        }
+    }
+
+    return null;
+}
+
 async function addEvent(data){
     await db.insert(
-        'INSERT INTO events (event_name, event_parent_name, event_time_start, event_time_end, event_frequency, role_to_ping, event_data) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-        [data.name, data.parentName, data.date, data.endDate, data.periodicity, data.role, data.data]
+        'INSERT INTO events (event_name, event_parent_name, event_time_start, event_time_end, event_frequency, role_to_ping, event_data, calendar_only, calendar_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [data.name, data.parentName, data.date, data.endDate, data.periodicity ? data.periodicity.trim().split(/\s+/).join(" ") : null, data.role, data.data, data.calendarOnly ? 1 : 0, data.color]
     );
 }
 
 
 async function removeEvent(data){
-    await db.delete('DELETE FROM events WHERE event_name = ?', [data.event]);
+    return await db.delete('DELETE FROM events WHERE event_name = ?', [data.event]);
 }
 
-async function getCalendar(data){
+// Logo, color and "calendar only" of every event with this name. Returns the list of changes
+async function editCalendarSettings(data) {
+    const changes = [];
 
-    try {
-        https.get(data.calendar.attachment, (res) => {
-            const fileStream = fs.createWriteStream("data/calendar.png");
-            res.pipe(fileStream);
-
-            fileStream.on("finish", () => {
-                fileStream.close();
-            });
-        });
-    } catch (error) {
-        console.log(error);
+    if(data.logo) {
+        await calendar.saveLogo(data.name, data.logo.url);
+        changes.push(`logo`);
+    } else if(data.removeLogo) {
+        calendar.removeLogo(data.name);
+        changes.push(`logo removed`);
     }
-    
 
-    
+    if(data.color) {
+        await db.update(`UPDATE events SET calendar_color = ? WHERE event_name = ?`, [data.color, data.name]);
+        changes.push(`color ${data.color}`);
+    }
+
+    if(data.calendarOnly != null) {
+        await db.update(`UPDATE events SET calendar_only = ? WHERE event_name = ?`, [data.calendarOnly ? 1 : 0, data.name]);
+        changes.push(data.calendarOnly ? `calendar only` : `shown in the mission board`);
+    }
+
+    return changes;
 }
 
 async function editData(data, interaction) {
@@ -209,7 +327,8 @@ async function editData(data, interaction) {
 
     if(!eventData) {
         return await interaction.reply({
-            content : `event unkown`
+            content : `event unkown`,
+            flags: MessageFlags.Ephemeral
         });
     }
 
@@ -221,7 +340,9 @@ async function editData(data, interaction) {
     .setCustomId(`dataContent`)
     .setStyle(TextInputStyle.Paragraph)
     .setMaxLength(255)
-    .setValue(eventData.event_data);
+    .setRequired(false);
+
+    if(eventData.event_data) input.setValue(eventData.event_data);
 
     const label = new LabelBuilder()
     .setLabel(`data`)

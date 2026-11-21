@@ -1,6 +1,9 @@
-import { Client, Collection, GatewayIntentBits, Partials } from "discord.js";
+import { Client, GatewayIntentBits, Partials } from "discord.js";
+import { globals } from "./globals.js";
 
 export const client = new Client({
+    // In test mode, roles (and @everyone / @here) are never pinged by the bot
+    ...(globals.testMode ? { allowedMentions: { parse: ["users"], repliedUser: true } } : {}),
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,

@@ -1,7 +1,7 @@
-import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { db } from '../connections/database.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
-import { messageContent } from '../functions/messageContent.js';
+import { scheduleEmbed } from '../functions/scheduleEmbed.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -10,7 +10,7 @@ export const command = {
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("edit")
-        .setDescription("Edit your schedule. I recommend you to execute 'schedule display' before exectuting this command")
+        .setDescription("Edit your schedule. I recommend you to execute '/my schedule' before exectuting this command")
         .addStringOption( (option) =>
             option
             .setName("day")
@@ -47,29 +47,9 @@ export const command = {
             .setRequired(true)
         )
     )
-    .addSubcommand( (subcommand) =>
-        subcommand
-        .setName("setup")
-        .setDescription("Setup assistant for creating your schedule")
-        .addStringOption( (option) =>
-            option
-            .setName("step")
-            .setDescription("The step you want to start from")
-            .setRequired(false)
-            .addChoices(
-                { name: "Informations", value: "1" },
-                { name: "Required data", value: "2" },
-                { name: "Availibilty hours", value: "3" }
-            )
-        )
-    )
     , async execute(interaction){
 
         // Get all command data
-        const setup = (interaction.options.getSubcommand() != "setup") ? null : {
-            step: (interaction.options.getString("step")) ? interaction.options.getString("step") : "1"
-        };
-
         const edit = (interaction.options.getSubcommand() != "edit") ? null : {
             day: (interaction.options.getString("day")) ? interaction.options.getString("day") : null,
             hours: (interaction.options.getString("hours")) ? interaction.options.getString("hours") : null
@@ -82,15 +62,6 @@ export const command = {
         let error;
 
         switch(interaction.options.getSubcommand()){
-            case "setup":
-                const messageData = {
-                    category: `schedule`,
-                    messageId: setup.step,
-                    messageType: `reply`
-                }
-
-                await messageContent.sendMessage(messageData, interaction);
-            break;
             case "edit":
                 error = await editScheduleData(edit, interaction.user.id);
 
@@ -100,7 +71,7 @@ export const command = {
                         flags: MessageFlags.Ephemeral
                     });
                 } else {
-                    nameUpdates.updateName(interaction.user.id, interaction.guild);
+                    await nameUpdates.updateName(interaction.user.id, interaction.guild);
 
                     await interaction.reply({
                         content: `Schedule updated successfully`,
@@ -116,49 +87,46 @@ export const command = {
         }
 
         async function editScheduleData(data, id) {
-            // Check given data
-            const periods = data.hours;
-            const days = data.day;
+            const days = data.day.split(",");
+            const periods = data.hours.split(",").map(p => p.trim()).filter(Boolean);
 
-            const memberData = await db.getrow(`SELECT timezone FROM member WHERE id = ?`, [id]);
+            if(periods.length == 0) return "You must give at least one period (ex: 08:00 18:00)";
 
-            for(const day of days.split(",")) {
+            // Check all the given data before editing anything
+            for(const p of periods) {
+                const split = p.split(" ").filter(Boolean);
+                if(split.length != 2) return "You must separate the start and end of availibility by a space (ex: 08:00 18:00)";
 
-                const existing = await db.getrow(`SELECT DISTINCT id FROM schedule WHERE day = ? AND id = ? LIMIT 1`, [day, id]);
-                if(existing) await db.delete(`DELETE FROM schedule WHERE day = ? AND id = ?`, [day, id]);
+                for(const time of split) {
+                    if(time.split(":").length != 2) return "The hours and minutes must be separated by \":\" (ex: 15:20)";
 
-                for(const p of periods.split(", ")) {
+                    const [hour, minute] = time.split(":");
+                    if(!/^\d{1,2}$/.test(hour) || !/^\d{2}$/.test(minute)) return "Hours and minutes should be numbers (ex: 08:00 18:30)";
+                    if(parseInt(hour) > 23 || parseInt(minute) > 59) return "Hours must be between 00 and 23, minutes between 00 and 59";
+                }
+            }
 
-                    if(p.split(" ").length != 2) return "You must separate the start and end of availibility by a space (ex: 08:00 18:00)";
+            // Replace the schedule of the given days
+            for(const day of days) {
+                await db.delete(`DELETE FROM schedule WHERE day = ? AND id = ?`, [day, id]);
 
-                    const start = p.split(" ")[0];
-                    const end = p.split(" ")[1];
-
-                    if(start.split(":").length != 2 || end.split(":").length != 2) return "The hours and minutes must be separated by \":\" (ex: 15:20)";
-
-                    const startHour = start.split(":")[0];
-                    const startMinute = start.split(":")[1];
-                    const endHour = end.split(":")[0];
-                    const endMinute = end.split(":")[1];
-
-                    if(isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) return "Hours and minutes should be numbers";
-
-                    await db.insert(`INSERT INTO schedule (id, day, period) VALUES (?, ?, ?)`, [id, day, p]);
+                for(const p of periods) {
+                    const [start, end] = p.split(" ").filter(Boolean);
+                    await db.insert(`INSERT INTO schedule (id, day, period) VALUES (?, ?, ?)`, [id, day, `${start.padStart(5, "0")} ${end.padStart(5, "0")}`]);
                 }
             }
         }
 
         async function displaySchedule(interaction, id) {
-            console.log(id);
             const member = await db.getrow(`SELECT timezone, name FROM member WHERE id = ?`, [id]);
-            
+
             if(!member) {
                 return await interaction.reply({
                     content: `No schedule setup`,
                     flags: MessageFlags.Ephemeral
                 });
             }
-            
+
             const schedule = await db.getall(`SELECT day, period FROM schedule WHERE id = ?`, [id]);
 
             if(schedule.length == 0) {
@@ -169,88 +137,9 @@ export const command = {
             }
 
             await interaction.reply({
-                content: `loading`,
+                embeds: [scheduleEmbed.buildScheduleEmbed(member, schedule)],
                 flags: MessageFlags.Ephemeral
             });
-
-            const scheduleTimes = [
-                { name: `Monday`, data: [] },
-                { name: `Tuesday`, data: [] },
-                { name: `Wednesday`, data: [] },
-                { name: `Thursday`, data: [] },
-                { name: `Friday`, data: [] },
-                { name: `Saturday`, data: [] },
-                { name: `Sunday`, data: [] },
-            ];
-
-            const now = new Date();
-
-            for(const row of schedule) {
-                const start = row.period.split(" ")[0];
-                const end = row.period.split(" ")[1];
-
-                const startHour = parseInt(start.split(":")[0]) - member.timezone;
-                const startMinute = parseInt(start.split(":")[1]);
-                const endHour = parseInt(end.split(":")[0]) - member.timezone;
-                const endMinute = parseInt(end.split(":")[1]);
-
-                const utcStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), startHour, startMinute, 0));
-                const utcEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), endHour, endMinute, 0));
-
-                const period = {
-                    start: utcStart,
-                    end: utcEnd
-                }
-
-                switch(row.day) {
-                    case "Mon":
-                        scheduleTimes[0].data.push(period);
-                    break;
-                    case "Tue":
-                        scheduleTimes[1].data.push(period);
-                    break;
-                    case "Wed":
-                        scheduleTimes[2].data.push(period);
-                    break;
-                    case "Thu":
-                        scheduleTimes[3].data.push(period);
-                    break;
-                    case "Fri":
-                        scheduleTimes[4].data.push(period);
-                    break;
-                    case "Sat":
-                        scheduleTimes[5].data.push(period);
-                    break;
-                    case "Sun":
-                        scheduleTimes[6].data.push(period);
-                    break;
-                }
-            }
-
-            const scheduleEmbed = new EmbedBuilder()
-            .setTitle(`${member.name}'s availibilities`)
-            .setTimestamp();
-
-            for(const day of scheduleTimes) {
-                let periods = "";
-
-                if(day.data.length == 0) {
-                    scheduleEmbed.addFields({ name: `${day.name}`, value: `Unknown` });
-                } else {
-                    for(const period of day.data) {
-                        if(periods.length > 0) periods += " / "
-                        periods += `<t:${period.start.getTime() / 1000}:T> to <t:${period.end.getTime() / 1000}:T>`;
-                    }
-
-                    scheduleEmbed.addFields({ name: `${day.name}`, value: `${periods}` });
-                }
-            }
-
-            await interaction.editReply({
-                content: ` `,
-                embeds: [scheduleEmbed]
-            });
-
         }
     }
 }

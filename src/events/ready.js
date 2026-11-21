@@ -64,13 +64,7 @@ export const event = {
         mb.missionBoard(client);
 
         // Load name update routine
-        //nameUpdates.updateRoutine(client);
-
-        // Load translation links
-        //translation.load();
-
-        //Load emojis
-        //manageEmojis.getBotEmojis(client);
+        nameUpdates.updateRoutine(client);
 
         // Refresh tierlist
         tierlist.tierlistMessage(await guild.channels.fetch(globals.server.channel.tierlist));

@@ -1,18 +1,13 @@
-import {  } from 'discord.js';
 import { db } from '../connections/database.js';
 
-// Executed when bot is ready
 export const autocomplete = {
     async execute(interaction){
-        
-        // Get the content of input field
-        const input = "%" + interaction.options._hoistedOptions[0].value + "%";
 
-        // Get the member
-        const query = `SELECT DISTINCT event_name from events WHERE event_name LIKE '${input}' LIMIT 25`;
-        const result = await db.query(query);
+        // Get the content of the focused input field
+        const input = `%${interaction.options.getFocused()}%`;
 
-        // Display the leagues
-        await interaction.respond(result.map(choice => ({ name: `${choice.event_name}`, value: choice.event_name })));
+        const result = await db.getall(`SELECT DISTINCT event_name FROM events WHERE event_name LIKE ? LIMIT 25`, [input]);
+
+        await interaction.respond(result.map(choice => ({ name: `${choice.event_name}`.slice(0, 100), value: `${choice.event_name}`.slice(0, 100) })));
     }
 }

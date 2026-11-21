@@ -1,6 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder, PermissionsBitField, MessageFlags } from 'discord.js';
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
+import { nameUpdates } from '../functions/nameUpdates.js';
+import { villageFlow } from '../functions/villageFlow.js';
+import { villageMembership } from '../functions/villageMembership.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -21,16 +24,19 @@ export const command = {
             option
             .setName("name")
             .setDescription("member in-game name")
+            .setMaxLength(50)
         )
         .addStringOption( (option) =>
             option
             .setName("timezone")
-            .setDescription("member timezone")
+            .setDescription("member timezone (ex: +2, -11, +0)")
+            .setMaxLength(3)
         )
         .addStringOption( (option) =>
             option
             .setName("id")
             .setDescription("member in-game ID")
+            .setMaxLength(30)
         )
     )
     .addSubcommandGroup( (subcommandgroup) =>
@@ -110,29 +116,57 @@ export const command = {
                 });
             }
 
+            if(params.timezone && !nameUpdates.isValidTimezone(params.timezone)) {
+                return await interaction.reply({
+                    content: `The timezone must be a sign (+ or -) and then a number between 0 and 12 (ex: +2, -11, +0)`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             const existing = await db.getrow(`SELECT * FROM member WHERE id = ?`, [params.member.id]);
 
             if(!existing) {
-                await db.insert(`INSERT INTO member (id) VALUES (?)`, (params.member.id));
+                await db.insert(`INSERT INTO member (id) VALUES (?)`, [params.member.id]);
             }
 
             if(params.name) await db.update(`UPDATE member SET name = ? WHERE id = ?`, [params.name, params.member.id]);
             if(params.timezone) await db.update(`UPDATE member SET timezone = ? WHERE id = ?`, [params.timezone, params.member.id]);
             if(params.id) await db.update(`UPDATE member SET ig_id = ? WHERE id = ?`, [params.id, params.member.id]);
 
+            // Update the name in discord
+            await nameUpdates.updateName(params.member.id, interaction.guild);
+
             return await interaction.reply({
-                content: `member updated successfully, he will be updated soon`,
+                content: `member updated successfully`,
                 flags: MessageFlags.Ephemeral
             });
-            
+
         }
 
         async function changeVillage(interaction, params) {
-            const member = await db.getrow(`SELECT * FROM member WHERE id = ?`, [params.member.id]);
-            const guildMember = await interaction.guild.members.cache.get(params.member.id);
+            // Checks
+            const village = await db.getrow(`SELECT tag, role_id, name, flow, moderation, flow_incoming FROM village WHERE tag = ?`, [params.village]);
+            if(!village) {
+                return await interaction.reply({
+                    content: `Unknown village, pick it from the list`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
 
-            if(!member) {
-                await db.insert(`INSERT INTO member (id) VALUES (?)`, [params.member.id]);
+            const guildMember = await villageFlow.fetchMember(interaction.guild, params.member.id);
+            if(!guildMember) {
+                return await interaction.reply({
+                    content: `This member is not in the server`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const member = await db.getrow(`SELECT * FROM member WHERE id = ?`, [params.member.id]);
+            if(member && member.village_tag == village.tag) {
+                return await interaction.reply({
+                    content: `This member is already in this village`,
+                    flags: MessageFlags.Ephemeral
+                });
             }
 
             await interaction.reply({
@@ -140,37 +174,45 @@ export const command = {
                 flags: MessageFlags.Ephemeral
             });
 
+            if(!member) {
+                await db.insert(`INSERT INTO member (id) VALUES (?)`, [params.member.id]);
+            }
+
             if(member && member.village_tag) {
                 // Remove origin village
                 const originVillage = await db.getrow(`SELECT * FROM village WHERE tag = ?`, [member.village_tag]);
 
-                const originVillageRole = await interaction.guild.roles.cache.get(originVillage.role_id);
-                await guildMember.roles.remove(originVillageRole);
+                if(originVillage) {
+                    await guildMember.roles.remove(originVillage.role_id);
 
-                // Send message in village flow
-                const oldFlowEmbed = new EmbedBuilder()
-                .setTitle(`Member left`)
-                .setDescription(`<@${params.member.id}> has left the village !\nremoved by <@${interaction.user.id}>`)
-                .setColor(globals.embed.orange)
-                .setTimestamp();
+                    // The member loses his kage / sub kage position in his old village
+                    await villageFlow.removeVillageRanks(interaction.guild, guildMember, originVillage);
 
-                const oldFlowChannel = await interaction.guild.channels.cache.get(originVillage.flow);
-                oldFlowChannel.send({
-                    embeds: [oldFlowEmbed]
-                });
+                    // Send message in village flow
+                    const oldFlowEmbed = new EmbedBuilder()
+                    .setTitle(`Member left`)
+                    .setDescription(`<@${params.member.id}> has left the village !\nremoved by <@${interaction.user.id}>`)
+                    .setColor(globals.embed.orange)
+                    .setTimestamp();
+
+                    await villageFlow.sendLog(interaction.guild, originVillage, originVillage.flow_leave, { embeds: [oldFlowEmbed] });
+                }
             } else {
                 // Remove lone role
-                const lone = await interaction.guild.roles.cache.get(globals.server.role.lone);
-                await guildMember.roles.remove(lone);
+                await guildMember.roles.remove(globals.server.role.lone);
             }
 
             // Add village role
-            const village = await db.getrow(`SELECT role_id, name, flow FROM village WHERE tag = ?`, [params.village]);
-            const villageRole = await interaction.guild.roles.cache.get(village.role_id);
-            await guildMember.roles.add(villageRole);
+            await guildMember.roles.add(village.role_id);
 
             // Update database
-            await db.update(`UPDATE member SET village_tag = ? WHERE id = ?`, [params.village, params.member.id]);
+            await db.update(`UPDATE member SET village_tag = ? WHERE id = ?`, [village.tag, params.member.id]);
+
+            // Update the village tag in the member name
+            await nameUpdates.updateName(params.member.id, interaction.guild);
+
+            // His pending applications are not needed anymore
+            await villageMembership.cancelApplications(interaction.guild, params.member.id, `moved to [${village.tag}] by a moderator`);
 
             // Send message in village flow
             const flowEmbed = new EmbedBuilder()
@@ -179,20 +221,26 @@ export const command = {
             .setColor(globals.embed.green)
             .setTimestamp();
 
-            const flowChannel = await interaction.guild.channels.cache.get(village.flow);
-            flowChannel.send({
-                embeds: [flowEmbed]
-            });
+            await villageFlow.sendLog(interaction.guild, village, village.flow_incoming, { embeds: [flowEmbed] });
         }
 
         async function changePosition(interaction, params) {
             // Checks
             const target = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [params.member.id]);
-            const village = await db.getrow(`SELECT moderation FROM village WHERE tag = ?`, [target.village_tag]);
-            
+
             if(!target || !target.village_tag) {
                 return await interaction.reply({
                     content: `This member is not from a village`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const village = await db.getrow(`SELECT flow, moderation, flow_promote FROM village WHERE tag = ?`, [target.village_tag]);
+            const member = await villageFlow.fetchMember(interaction.guild, params.member.id);
+
+            if(!village || !member) {
+                return await interaction.reply({
+                    content: `This member or his village couldn't be found`,
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -204,18 +252,17 @@ export const command = {
             });
 
             // Fetch moderation channel
-            const moderation = await interaction.guild.channels.cache.get(village.moderation);
+            const moderation = await villageFlow.fetchChannel(interaction.guild, village.moderation);
 
             // Prepare embed
             const flowEmbed = new EmbedBuilder()
             .setTimestamp();
 
             // Promote or demote
-            const member = await interaction.guild.members.cache.get(params.member.id);
             if(member.roles.cache.has(globals.server.role.sub)) {
-                member.roles.remove(globals.server.role.sub);
+                await member.roles.remove(globals.server.role.sub);
 
-                moderation.permissionOverwrites.edit(params.member.id, {
+                if(moderation) await moderation.permissionOverwrites.edit(params.member.id, {
                     ViewChannel: false
                 });
 
@@ -224,9 +271,9 @@ export const command = {
                 .setDescription(`<@${params.member.id}> lost his/her sub kage position\nExecuted by <@${interaction.user.id}>`)
                 .setColor(globals.embed.red);
             } else {
-                member.roles.add(globals.server.role.sub);
+                await member.roles.add(globals.server.role.sub);
 
-                moderation.permissionOverwrites.edit(params.member.id, {
+                if(moderation) await moderation.permissionOverwrites.edit(params.member.id, {
                     ViewChannel: true
                 });
 
@@ -235,13 +282,9 @@ export const command = {
                 .setDescription(`<@${params.member.id}> got a sub kage position\nExecuted by <@${interaction.user.id}>`)
                 .setColor(globals.embed.green);
             }
-            
+
             // Send flow message
-            const villageChannel = await interaction.guild.channels.cache.get(village.flow);
-            
-            await villageChannel.send({
-                embeds: [flowEmbed]
-            });
+            await villageFlow.sendLog(interaction.guild, village, village.flow_promote, { embeds: [flowEmbed] });
         }
     }
 }

@@ -1,0 +1,19 @@
+{
+    "forum": {
+        "guidelines": "Documentation of Sakuretsu Bot. Start with the pinned post, or filter the posts with the tags.",
+        "tags": [
+            { "name": "Getting started", "emoji": "🚀" },
+            { "name": "Members", "emoji": "👤" },
+            { "name": "Villages", "emoji": "🏘️" },
+            { "name": "Kage & BroKage", "emoji": "👑" },
+            { "name": "Blood Clash", "emoji": "🩸" },
+            { "name": "Events", "emoji": "📣" },
+            { "name": "Community", "emoji": "⭐" },
+            { "name": "Moderators", "emoji": "🛡️" }
+        ]
+    },
+    "channels": {
+        "backlog": "1533832833939017851",
+        "suggestions": "1526554832658497546"
+    }
+}

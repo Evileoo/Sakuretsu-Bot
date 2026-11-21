@@ -25,7 +25,10 @@ export const event = {
 			
 			const button = interaction.client.buttons.get(buttonData[0]);
 
-			if(!button) console.error(`No button matching ${interaction.commandName} was found.`);
+			if(!button) {
+				console.error(`No button matching ${buttonData[0]} was found.`);
+				return;
+			}
 
 			try {
 				await button.execute(interaction, buttonData);
@@ -40,7 +43,10 @@ export const event = {
 
 			const selectMenu = interaction.client.selectMenus.get(selectMenuData[0]);
 
-			if(!selectMenu) console.error(`No select menu matching ${selectMenuData[0]} was found.`);
+			if(!selectMenu) {
+				console.error(`No select menu matching ${selectMenuData[0]} was found.`);
+				return;
+			}
 
 			try {
 				await selectMenu.execute(interaction, selectMenuData);
@@ -51,46 +57,28 @@ export const event = {
 
 		} else if (interaction.isAutocomplete()) {
 
-			let autocomplete;
-			if(interaction.commandName == 'status'){
-				autocomplete = interaction.client.autocompletes.get(`getMemberFromStatus`);
-			} else if(interaction.commandName == 'event') {
-				autocomplete = interaction.client.autocompletes.get(`getEventName`);
-			} else if(interaction.commandName == 'notebook') {
-				if(interaction.options._subcommand == "read") {
-					autocomplete = interaction.client.autocompletes.get(`getPublicNotebook`);
-				} else {
-					autocomplete = interaction.client.autocompletes.get(`getNotebookName`);
-				}
-			} else if(interaction.commandName == 'my') {
-				if(interaction.options._subcommand == "village") {
-					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
-				}
-			} else if(interaction.commandName == 'village') {
-				if(interaction.options._subcommand == "delete") {
-					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
-				}
-			} else if(interaction.commandName == 'mod') {
-				if(interaction.options._subcommand == "change") {
-					autocomplete = interaction.client.autocompletes.get(`getVillageTag`);
-				}
-			} else if(interaction.commandName == 'translate') {
-				if(interaction.options._subcommand == "link") {
-					autocomplete = interaction.client.autocompletes.get(`getTranslateLinks`);
-				}
-			} else if(interaction.commandName == 'ninja') {
-				if(interaction.options._subcommand == "get") {
-					autocomplete = interaction.client.autocompletes.get(`getNinja`);
-				}
-			} else {
-				console.error(`No autocomplete matching ${interaction.commandName} / ${interaction.options._subcommand} was found.`);
+			// Subcommands of a group are named "group subcommand" (ex: "tac create")
+			const group = interaction.options.getSubcommandGroup(false);
+			const subcommand = `${group && interaction.commandName != `mod` ? `${group} ` : ``}${interaction.options.getSubcommand(false)}`;
+			const autocompleteRoutes = {
+				event: { add: `getEventName`, remove: `getEventName`, data: `getEventName`, calendar: `getEventName` },
+				village: { delete: `getVillageTag`, unban: `getMemberFromStatus`, sanctions: `getMemberFromStatus`, "tac create": `getVillageTag`, "tac delete": `getTacChannel` },
+				mod: { change: `getVillageTag` },
+				my: { "village apply": `getVillageTag` }
+			};
+
+			const autocompleteName = autocompleteRoutes[interaction.commandName]?.[subcommand];
+			const autocomplete = autocompleteName ? interaction.client.autocompletes.get(autocompleteName) : null;
+
+			if(!autocomplete) {
+				console.error(`No autocomplete matching ${interaction.commandName} / ${subcommand} was found.`);
 				return;
 			}
 
 			try {
 				await autocomplete.execute(interaction);
 			} catch(error) {
-				console.error(`Error executing ${interaction.options._subcommand}`);
+				console.error(`Error executing autocomplete ${interaction.commandName} / ${subcommand}`);
 				console.error(error);
 			}
 			
@@ -100,7 +88,10 @@ export const event = {
 
 			const modal = interaction.client.modals.get(modalData[0]);
 
-			if(!modal) console.error(`No modal matching ${interaction.modalData[0]} was found.`);
+			if(!modal) {
+				console.error(`No modal matching ${modalData[0]} was found.`);
+				return;
+			}
 
 			try {
 				await modal.execute(interaction, modalData);

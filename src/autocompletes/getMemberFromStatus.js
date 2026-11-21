@@ -1,18 +1,20 @@
-import {  } from 'discord.js';
 import { db } from '../connections/database.js';
 
-// Executed when bot is ready
 export const autocomplete = {
     async execute(interaction){
-        
-        // Get the content of input field
-        const input = "%" + interaction.options._hoistedOptions[0].value + "%";
 
-        // Get the member
-        const query = `SELECT member_id, member_name from status WHERE member_id LIKE '${input}' OR member_name LIKE '${input}' LIMIT 25`;
-        const result = await db.query(query);
+        // Get the content of the focused input field
+        const input = `%${interaction.options.getFocused()}%`;
 
-        // Display the leagues
-        await interaction.respond(result.map(choice => ({ name: `${choice.member_name} (${choice.member_id})`, value: choice.member_id })));
+        // Only show sanctions of the executor's village
+        const executor = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+        if(!executor || !executor.village_tag) return await interaction.respond([]);
+
+        const result = await db.getall(
+            `SELECT DISTINCT member_id, member_name FROM status WHERE village_tag = ? AND (member_id LIKE ? OR member_name LIKE ?) LIMIT 25`,
+            [executor.village_tag, input, input]
+        );
+
+        await interaction.respond(result.map(choice => ({ name: `${choice.member_name} (${choice.member_id})`.slice(0, 100), value: `${choice.member_id}` })));
     }
 }

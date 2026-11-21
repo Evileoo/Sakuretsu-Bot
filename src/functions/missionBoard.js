@@ -1,68 +1,106 @@
-import { AttachmentBuilder, EmbedBuilder, SectionComponent } from 'discord.js';
+import { AttachmentBuilder, ChannelType, EmbedBuilder } from 'discord.js';
 import schedule from 'node-schedule';
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
+import { bc } from './bloodclash.js';
+import { calendar } from './calendar.js';
 
+// Dates are saved in the database as UTC ("YYYY MM DD HH MM SS" once formatted)
 function parseSqlDate(sqlTimeString) {
     if (!sqlTimeString) return null;
-    const [year, month, day, hour, minute, second] = sqlTimeString.split(" ");
+    const [year, month, day, hour, minute, second] = sqlTimeString.split(" ").map(Number);
     return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+}
+
+// Format a date into a UTC MySQL datetime string
+function toSqlDate(date) {
+    return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
+async function getMissionBoardChannel(client) {
+    const guild = await client.guilds.fetch(`${globals.server.id}`);
+    //return await guild.channels.fetch(globals.server.channel.missionBoard);
+    return await guild.channels.fetch(`1573650148519706726`);
 }
 
 async function missionBoard(client) {
     // Mise à jour des événements au démarrage du bot (au cas où il était éteint pendant un événement)
-    await updateEvents(client);
+    await updateEvents(client).catch(error => console.error(`[Mission board]`, error));
+    await refreshPanel(client);
 
     // Routine de vérification toutes les minutes
-    const missionBoardUpdates = schedule.scheduleJob('0 */1 * * * *', async function() {
-        await updateEvents(client);
+    schedule.scheduleJob('0 */1 * * * *', async function() {
+        await updateEvents(client).catch(error => console.error(`[Mission board]`, error));
     });
+
+    // The calendar shows the next 7 days: refresh it every day at 00:00 (in-game time, UTC)
+    const midnight = new schedule.RecurrenceRule();
+    midnight.hour = 0;
+    midnight.minute = 0;
+    midnight.second = 5;
+    midnight.tz = `Etc/UTC`;
+    schedule.scheduleJob(midnight, async function() {
+        await refreshPanel(client);
+    });
+}
+
+async function refreshPanel(client) {
+    try {
+        await editPanel(await getMissionBoardChannel(client), "edit");
+    } catch(error) {
+        console.error(`[Mission board] Couldn't refresh the panel :`, error);
+    }
 }
 
 
 async function updateEvents(client) {
-    const now = new Date();
-    now.setSeconds(0);
-    now.setMilliseconds(0);
-
-    const utcNow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
+    const utcNow = new Date();
+    utcNow.setUTCSeconds(0, 0);
 
     const events = await db.getall(`SELECT *, DATE_FORMAT(event_time_start, '%Y %m %d %H %i %s') AS "time_start", DATE_FORMAT(event_time_end, '%Y %m %d %H %i %s') AS "time_end" FROM events ORDER BY event_parent_name, event_time_start ASC`);
     if(events.length == 0) return;
 
     // Récupération du salon Discord
-    const guild = await client.guilds.fetch(`${globals.server.id}`);
-    //const channel = await guild.channels.cache.get(globals.server.channel.missionBoard);
-    const channel = await guild.channels.cache.get(`1485202060973576212`);
+    const channel = await getMissionBoardChannel(client);
 
     for(const event of events) {
-        // Get event start date
-        const nextStartDate = parseSqlDate(event.time_start);
-        const timeBeforeStart = nextStartDate.getTime() - utcNow.getTime();
+        // One broken event must not block the others
+        try {
+            // Get event start date
+            const nextStartDate = parseSqlDate(event.time_start);
+            const timeBeforeStart = nextStartDate.getTime() - utcNow.getTime();
 
-        if(!event.time_end) { // ponctual events
-            if(timeBeforeStart == 10 * 60 * 1000) { // 10 minutes before start
-                // Delete the mission board panel
-                await editPanel(channel, "delete");
+            if(event.calendar_only == 1) { // only shown in the calendar: no reminder, no message
+                const end = event.time_end
+                    ? parseSqlDate(event.time_end)
+                    : new Date(Date.UTC(nextStartDate.getUTCFullYear(), nextStartDate.getUTCMonth(), nextStartDate.getUTCDate() + 1)); // end of its day
 
-                // Send the start message
-                await startMessage(client, event);
+                if(end.getTime() <= utcNow.getTime()) {
+                    await nextDate(event.event_id);
+                    await editPanel(channel, "edit");
+                }
+            } else if(!event.time_end) { // ponctual events
+                if(timeBeforeStart == 10 * 60 * 1000) { // 10 minutes before start
+                    // Delete the mission board panel
+                    await editPanel(channel, "delete");
 
-                // Recreate the mission board panel
-                await editPanel(channel, "create");
-            } else if(timeBeforeStart <= 10 * 60 * 1000 * -1) { // 10 minutes after start
-                // Get the next date
-                await nextDate(event.event_id);
+                    // Send the start message
+                    await startMessage(client, event, channel);
 
-                // Refresh the panel
-                await editPanel(channel, "edit");
-            }
-        } else { // long events
-            // Get event end date
-            const nextEndDate = parseSqlDate(event.time_end);
-            const timeBeforeEnd = nextEndDate.getTime() - utcNow.getTime();
+                    // Recreate the mission board panel
+                    await editPanel(channel, "create");
+                } else if(timeBeforeStart <= 10 * 60 * 1000 * -1) { // 10 minutes after start
+                    // Get the next date
+                    await nextDate(event.event_id);
 
-            if(event.event_parent_name == "Blood Clash") {
+                    // Refresh the panel
+                    await editPanel(channel, "edit");
+                }
+            } else { // long events
+                // Get event end date
+                const nextEndDate = parseSqlDate(event.time_end);
+                const timeBeforeEnd = nextEndDate.getTime() - utcNow.getTime();
+
                 if(timeBeforeEnd <= 0) {
                     // Calculate following dates
                     await nextDate(event.event_id);
@@ -70,52 +108,52 @@ async function updateEvents(client) {
                     // Refresh the panel
                     await editPanel(channel, "edit");
 
-                } else if(timeBeforeStart == 0) {
+                } else if(timeBeforeStart == 0 && event.event_parent_name == "Blood Clash") {
                     // Execute specific event
-                    await startMessage(client, event);
+                    await startMessage(client, event, channel);
                 }
-            } else {
-                
             }
+        } catch(error) {
+            console.error(`[Mission board] Event ${event.event_id} (${event.event_name}) :`, error);
         }
     }
 }
 
-async function startMessage(client, event) {
+async function startMessage(client, event, missionBoardChannel) {
     if (event.event_parent_name === "Blood Clash") {
 
         const guild = await client.guilds.fetch(globals.server.id)
 
         //const channel = await guild.channels.fetch(globals.server.channel.bloodClash);
-        const channel = await guild.channels.fetch("1543549008402714645");
+        const channel = await guild.channels.fetch("1573650151409721384");
 
         // Suppression des salons d'aide
         const lobbies = await db.getall(`SELECT id, message FROM lobby`);
 
         for(const lobby of lobbies) {
             if(lobby.message) {
-                const message = await channel.messages.fetch(lobby.message);
-                await message.delete();
+                await channel.messages.delete(lobby.message).catch(() => null);
             }
 
-            const lChannel = await guild.channels.fetch(lobby.id);
-            await lChannel.delete();
+            if(lobby.id) {
+                const lChannel = await guild.channels.fetch(lobby.id).catch(() => null);
+                if(lChannel) await lChannel.delete().catch(error => console.error(`[Blood Clash] Couldn't delete the lobby ${lobby.id}: ${error.message}`));
+            }
         }
 
         // Nettoyage des tables de lobbies et requêtes
         await db.delete(`DELETE FROM bc`);
         await db.delete(`DELETE FROM lobby`);
 
-        // Mise à jour du panel
-        //await editPanel(await client.guild.channels.fetch(globals.server.channel.bcHelp), "edit");
-        await editPanel(await guild.channels.fetch("1543548395891859506"), "edit");
+        // Mise à jour de la liste des demandes d'aide
+        await bc.updateList(guild);
 
         // Message de réinitialisation
         await channel.send({
             content: `# 🚨 ${event.event_name} Blood Clash just started ! 🚨\nHelp requests and lobbies have been reset.\n-# <@&${globals.server.role.bcHelp}>`
         });
     } else {
-        //const channel = await client.channels.fetch(globals.server.channel.missionBoard);
+        const channel = missionBoardChannel ?? await getMissionBoardChannel(client);
         const pingPrefix = event.role_to_ping ? `${event.role_to_ping}: ` : '';
         await channel.send({
             content: `${pingPrefix}${event.event_name} starts in 10 minutes`
@@ -123,75 +161,99 @@ async function startMessage(client, event) {
     }
 }
 
-async function endMessage(client, event) {
-    
-}
-
 async function nextDate(eventId) {
     const event = await db.getrow(`SELECT DATE_FORMAT(event_time_start, '%Y %m %d %H %i %s') AS "date_start", DATE_FORMAT(event_time_end, '%Y %m %d %H %i %s') AS "date_end", event_frequency FROM events WHERE event_id = ?`, [eventId]);
     if (!event) return;
 
-    let date = event.date_start.split(" ");
-    const dateStart = new Date(date[0], date[1] - 1, date[2], date[3], date[4], date[5]);
+    const dateStart = parseSqlDate(event.date_start);
 
-    // Si pas de fréquence et que l'événement initial est expiré, on l'efface via db.query
+    // Si pas de fréquence et que l'événement initial est expiré, on l'efface
     if (event.event_frequency == null && new Date().getTime() > dateStart.getTime()) {
         return await db.query(`DELETE FROM events WHERE event_id = ?`, [eventId]);
     } else if (event.event_frequency == null) return;
 
-    const parse = (v) => (v == "*" ? null : Number(v));
+    const parse = (v) => (v == undefined || v == "*" ? null : Number(v));
+    const frequency = event.event_frequency.trim().split(/\s+/);
 
     const parsed = {
-        year: parse(event.event_frequency.split(" ")[0]),
-        month: parse(event.event_frequency.split(" ")[1]),
-        date: parse(event.event_frequency.split(" ")[2]),
-        hour: parse(event.event_frequency.split(" ")[3]),
-        minute: parse(event.event_frequency.split(" ")[4]),
-        second: parse(event.event_frequency.split(" ")[5]),
+        year: parse(frequency[0]),
+        month: parse(frequency[1]),
+        date: parse(frequency[2]),
+        hour: parse(frequency[3]),
+        minute: parse(frequency[4]),
+        second: parse(frequency[5]),
     };
 
-    // Ajustement de la nouvelle date de début
-    const newDateStart = new Date(dateStart.getTime());
-    if (parsed.year != null) newDateStart.setFullYear(newDateStart.getFullYear() + parsed.year);
-    if (parsed.month != null) newDateStart.setMonth(newDateStart.getMonth() + parsed.month);
-    if (parsed.date != null) newDateStart.setDate(newDateStart.getDate() + parsed.date);
-    if (parsed.hour != null) newDateStart.setHours(newDateStart.getHours() + parsed.hour);
-    if (parsed.minute != null) newDateStart.setMinutes(newDateStart.getMinutes() + parsed.minute);
-    if (parsed.second != null) newDateStart.setSeconds(newDateStart.getSeconds() + parsed.second);
-
-    // Ajustement de la nouvelle date de fin (si elle existe)
-    let newDateEnd = null;
-    if (event.date_end) {
-        date = event.date_end.split(" ");
-        const dateEnd = new Date(date[0], date[1] - 1, date[2], date[3], date[4], date[5]);
-        newDateEnd = new Date(dateEnd.getTime());
-        
-        if (parsed.year != null) newDateEnd.setFullYear(newDateEnd.getFullYear() + parsed.year);
-        if (parsed.month != null) newDateEnd.setMonth(newDateEnd.getMonth() + parsed.month);
-        if (parsed.date != null) newDateEnd.setDate(newDateEnd.getDate() + parsed.date);
-        if (parsed.hour != null) newDateEnd.setHours(newDateEnd.getHours() + parsed.hour);
-        if (parsed.minute != null) newDateEnd.setMinutes(newDateEnd.getMinutes() + parsed.minute);
-        if (parsed.second != null) newDateEnd.setSeconds(newDateEnd.getSeconds() + parsed.second);
+    // A frequency without any increment would keep the event at the same date forever
+    if (Object.values(parsed).every(v => !v)) {
+        console.error(`[Mission board] Event ${eventId} has an invalid frequency : ${event.event_frequency}`);
+        return;
     }
 
-    await db.query(`UPDATE events SET event_time_start = ?, event_time_end = ? WHERE event_id = ?`, [newDateStart, newDateEnd, eventId]);
+    // Ajustement de la nouvelle date de début (et de fin si elle existe), en UTC
+    const newDateStart = calendar.addFrequency(dateStart, event.event_frequency);
+    const newDateEnd = event.date_end ? calendar.addFrequency(parseSqlDate(event.date_end), event.event_frequency) : null;
+
+    await db.query(`UPDATE events SET event_time_start = ?, event_time_end = ? WHERE event_id = ?`, [toSqlDate(newDateStart), newDateEnd ? toSqlDate(newDateEnd) : null, eventId]);
+}
+
+// Find the mission board panel among the last messages of the channel
+async function findPanel(channel) {
+    const fetched = await channel.messages.fetch({ limit: 20 });
+    return fetched.find(m => m.author.id == channel.client.user.id && m.embeds[0]?.title == `Mission Board`) ?? null;
+}
+
+async function sendPanel(channel, payload) {
+    const message = await channel.send(payload);
+
+    // Publish the panel to the following servers
+    if (channel.type == ChannelType.GuildAnnouncement) {
+        await message.crosspost().catch(error => console.error("[Panel] Crosspost impossible :", error.message));
+    }
+
+    return message;
+}
+
+// Add a field, split in several fields if the text is too long for one
+function addLongField(embed, name, text) {
+    let value = "";
+
+    for (const line of text.split("\n").filter(Boolean)) {
+        if (value.length + line.length + 1 > 1024) {
+            embed.addFields({ name: `${name}`, value: value });
+            value = "";
+            name = `${name} (next)`;
+        }
+        value += `${line}\n`;
+    }
+
+    if (value) embed.addFields({ name: `${name}`, value: value });
 }
 
 async function editPanel(channel, action) {
     if (action == "delete") {
         try {
-            const fetched = await channel.messages.fetch({ limit: 1 });
-            if (fetched.size > 0) await fetched.last().delete();
+            const panel = await findPanel(channel);
+            if (panel) await panel.delete();
         } catch (e) {
             console.error("[Panel] Aucun message à effacer :", e.message);
         }
     } else if (action == "create" || action == "edit") {
 
         // Sélection SQL modifiée pour inclure et trier par event_parent_name
-        const events = await db.getall(`SELECT event_name, event_parent_name, DATE_FORMAT(event_time_start, '%Y %m %d %H %i %s') AS "date_start", DATE_FORMAT(event_time_end, '%Y %m %d %H %i %s') AS "date_end" FROM events ORDER BY COALESCE(event_parent_name, 'Autre'), event_time_start`);
+        const events = await db.getall(`SELECT event_name, event_parent_name, DATE_FORMAT(event_time_start, '%Y %m %d %H %i %s') AS "date_start", DATE_FORMAT(event_time_end, '%Y %m %d %H %i %s') AS "date_end" FROM events WHERE calendar_only = 0 ORDER BY COALESCE(event_parent_name, 'Autre'), event_time_start`);
 
-        // Syntaxe corrigée de l'AttachmentBuilder
-        const attachment = new AttachmentBuilder('./data/calendar.png', { name: 'calendar.png' });
+        // Calendar of the next 7 days, generated from the long events and the "calendar only" ones
+        const calendarEvents = await db.getall(`SELECT event_name, event_parent_name, DATE_FORMAT(event_time_start, '%Y %m %d %H %i %s') AS "date_start", DATE_FORMAT(event_time_end, '%Y %m %d %H %i %s') AS "date_end", event_frequency, calendar_color FROM events WHERE event_time_end IS NOT NULL OR calendar_only = 1`);
+        const image = await calendar.render(calendarEvents.map(e => ({
+            name: e.event_name,
+            parent: e.event_parent_name,
+            start: parseSqlDate(e.date_start),
+            end: parseSqlDate(e.date_end),
+            frequency: e.event_frequency,
+            color: e.calendar_color
+        })));
+        const attachment = new AttachmentBuilder(image, { name: 'calendar.png' });
 
         const missionBoard = new EmbedBuilder()
             .setTitle(`Mission Board`)
@@ -207,22 +269,18 @@ async function editPanel(channel, action) {
 
             if (currentParent !== lastParent) {
                 if (lastParent !== null) {
-                    missionBoard.addFields({ name: `${lastParent}`, value: `${schedule}` });
+                    addLongField(missionBoard, lastParent, schedule);
                 }
                 schedule = "";
                 lastParent = currentParent;
             }
 
-            const sParts = events[i].date_start.split(" ");
-            const dStart = new Date(Date.UTC(sParts[0], sParts[1] - 1, sParts[2], sParts[3], sParts[4], sParts[5]));
-            const timestampStart = Math.floor(dStart.getTime() / 1000);
+            const timestampStart = Math.floor(parseSqlDate(events[i].date_start).getTime() / 1000);
 
             // Inclusion de event_name au début de la ligne pour savoir de quel sous-événement il s'agit
             if (events[i].date_end) {
-                const eParts = events[i].date_end.split(" ");
-                const dEnd = new Date(Date.UTC(eParts[0], eParts[1] - 1, eParts[2], eParts[3], eParts[4], eParts[5]));
-                const timestampEnd = Math.floor(dEnd.getTime() / 1000);
-                
+                const timestampEnd = Math.floor(parseSqlDate(events[i].date_end).getTime() / 1000);
+
                 schedule += `- **${events[i].event_name}**: From <t:${timestampStart}:d> <t:${timestampStart}:t> to <t:${timestampEnd}:d> <t:${timestampEnd}:t>\n`;
             } else {
                 schedule += `- **${events[i].event_name}**: <t:${timestampStart}:d> <t:${timestampStart}:t> (<t:${timestampStart}:R>)\n`;
@@ -230,32 +288,26 @@ async function editPanel(channel, action) {
         }
 
         if (lastParent !== null && schedule !== "") {
-            missionBoard.addFields({ name: `${lastParent}`, value: `${schedule}` });
+            addLongField(missionBoard, lastParent, schedule);
         }
 
-        missionBoard.addFields({ name: `Event calendar`, value: `\u200b` });
+        missionBoard.addFields({ name: `Event calendar`, value: `​` });
 
         const payload = { embeds: [missionBoard], files: [attachment] };
 
         if (action == "create") {
-            const message = await channel.send(payload);
-            await message.crosspost();
+            await sendPanel(channel, payload);
         } else if (action == "edit") {
-            try {
-                const fetched = await channel.messages.fetch({ limit: 1 });
-                if (fetched.size > 0) {
-                    await fetched.last().edit(payload);
-                } else {
-                    const message = await channel.send(payload);
-                    await message.crosspost();
-                }
-            } catch (e) {
-                const message = await channel.send(payload);
-                await message.crosspost();
+            const panel = await findPanel(channel).catch(() => null);
+
+            if (panel) {
+                await panel.edit({ ...payload, attachments: [] });
+            } else {
+                await sendPanel(channel, payload);
             }
         }
     }
 }
 
 
-export const mb = { missionBoard, editPanel, startMessage };
+export const mb = { missionBoard, editPanel, startMessage, updateEvents, nextDate };

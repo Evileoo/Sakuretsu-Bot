@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, LabelBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { db } from '../connections/database.js';
 import { globals } from '../globals.js';
+import { docs } from '../functions/docs.js';
 
 // Executed when bot is ready
 export const button = {
@@ -13,9 +14,9 @@ export const button = {
 
         if(data.page == "1") {
             const embed = new EmbedBuilder()
-            .setTitle(`Tierlist guide`)
-            .setDescription(`You can create 3 types of tierlists :\n- global\n- PvP\n- PvE\nTo create your tierlist click on one of the corresponding buttons.\nNote: If you create your global tierlist before doing others, it will load the PvE and PvP ones with your global one, so your don't have to rewrite everything again.\n\n**How to fill the tierlist**\nYou will need to type the exact in game ninja name to add a ninja to your tierlist, or type the shortened name known by the bot. (those are available when clicking "short names" button)\nThe position of ninjas you give in the tierlist matters, the first will be better ranked than the 2nd, in each tier.\n__For your tierlist to be taken in account, type the ninja name, go to the line, then type an other name__.\nIf the ninja has an awaken, you can type it's name, then put T2 or T5 after it if it changes it's position in the tierlist\n\n**Ninja tiers**\n- G tier : best ninja, only 1 ninja allowed\n- S tier : best ninjas of the game\n- A tier : good ninjas\n- B tier : meh ninjas\n- C tier : Bad ninjas\nIf you don't know in which tier a ninja goes, just don't type it.\n\nOnce your tierlist will be ready, it will update the tierlist based on your tierlist and all other players ones.\n\n**Example of how to type in 1 of the tiers**\n\`\`\`Hashirama Senju\nObito\nPain Tendo T5\nKakashi T2\nTsunade\`\`\``)
-        
+            .setTitle(`Your tierlist`)
+            .setDescription(`Pick the tierlist you want to fill : **Global**, **PvE** or **PvP**.\nHow it works : ${docs.mention(`tierlist`)}`);
+
             const shortNames = new ButtonBuilder()
             .setCustomId(`tierlist${globals.separator}2`)
             .setLabel(`Short Names`)
@@ -38,6 +39,9 @@ export const button = {
         
             const row = new ActionRowBuilder()
             .addComponents(shortNames, globalTierlist, PvE, PvP);
+
+            const guideUrl = docs.url(`tierlist`);
+            if(guideUrl) row.addComponents(new ButtonBuilder().setLabel(`How it works`).setStyle(ButtonStyle.Link).setURL(guideUrl));
 
             await interaction.reply({
                 embeds: [embed],
@@ -64,7 +68,9 @@ export const button = {
             });
         } else {
 
-            const content = await db.getrow(`SELECT * FROM tierlist WHERE id = ? AND type = ?`, [interaction.user.id, parseInt(data.type)]);
+            // The PvE and PvP tierlists start from the global one when they are empty
+            const content = await db.getrow(`SELECT * FROM tierlist WHERE id = ? AND type = ?`, [interaction.user.id, parseInt(data.type)])
+                ?? (data.type != "0" ? await db.getrow(`SELECT * FROM tierlist WHERE id = ? AND type = 0`, [interaction.user.id]) : null);
 
             const modal = new ModalBuilder()
             .setCustomId(`tierlist${globals.separator}${data.type}`)

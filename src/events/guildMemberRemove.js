@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import { globals } from '../globals.js';
+import { villageMembership } from '../functions/villageMembership.js';
 
 // Executed when bot is ready
 export const event = {
@@ -24,6 +25,9 @@ export const event = {
         const guild = member.guild;
         const channel = await guild.channels.fetch(`${globals.server.channel.flow}`);
         await channel.send(leaveMessage);
+
+        // His pending applications can't be accepted anymore
+        await villageMembership.cancelApplications(guild, member.id, `the member left the server`);
 
     }
 }

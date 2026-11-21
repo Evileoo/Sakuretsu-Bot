@@ -1,4 +1,7 @@
 export const globals = {
+    // Test mode: the bot never pings roles (members mentions still work).
+    // Set it to false when switching the dev channels (bloodclash.js, missionBoard.js, event.js) back to the prod ones
+    testMode: true,
     separator: `|||`,
     developer: {
         discord: {
@@ -19,7 +22,11 @@ export const globals = {
             bcHelp: `1530881093593464902`,
             automod: `1542981838849577073`,
             tierlist: `1551315395410006196`,
-            starboard: `1559211027235737680`
+            starboard: `1559211027235737680`,
+            // Documentation forum (docs/posts, published with "npm run docs"), to create when the bot goes to prod
+            docs: ``,
+            // Category of the Tri-Army Clash shared channels. Empty: the bot uses (or creates) the "⚔️ Tri-Army Clash" category
+            tacCategory: ``
         },
         role: {
             mod: `1483148976101396480`,

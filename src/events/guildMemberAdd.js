@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { globals } from '../globals.js';
 import { db } from '../connections/database.js';
+import { nameUpdates } from '../functions/nameUpdates.js';
 
 // Executed when bot is ready
 export const event = {
@@ -30,11 +31,22 @@ export const event = {
 
         const memberData = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [member.user.id]);
 
-        if(memberData && memberData.village_tag != null) {
-            const village = await db.getrow(`SELECT role_id FROM village WHERE tag = ?`, [memberData.village_tag]);
-            await member.roles.add(village.tag);
+        const village = (memberData && memberData.village_tag != null)
+            ? await db.getrow(`SELECT role_id FROM village WHERE tag = ?`, [memberData.village_tag])
+            : null;
+
+        if(village) {
+            // The member comes back in his village
+            await member.roles.add(village.role_id);
         } else {
+            if(memberData && memberData.village_tag != null) {
+                // The village doesn't exist anymore
+                await db.update(`UPDATE member SET village_tag = NULL WHERE id = ?`, [member.user.id]);
+            }
             await member.roles.add(globals.server.role.lone);
         }
+
+        // Discord resets the nickname when a member leaves, give him back his name
+        await nameUpdates.updateName(member.user.id, guild);
     }
 }

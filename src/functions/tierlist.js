@@ -42,6 +42,8 @@ async function getTierlistText(type) {
         }
     }
 
+    if (text.length > 1024) text = text.slice(0, text.lastIndexOf("\n", 1020)) + "\n…";
+
     return {
         text: text || "*No ninjas ranked*",
         count: data.tierlists
@@ -112,8 +114,8 @@ async function updatePersonalTierlist(interaction, modalData) {
             // Isoler le suffixe potentiel T2 ou T5
             const parts = line.split(' ');
             let suffix = null;
-            if (parts.length > 1 && ['T2', 'T5'].includes(parts[parts.length - 1])) {
-                suffix = parts.pop();
+            if (parts.length > 1 && ['T2', 'T5'].includes(parts[parts.length - 1].toUpperCase())) {
+                suffix = parts.pop().toUpperCase();
             }
             const ninjaName = parts.join(' ').trim();
 
@@ -158,7 +160,7 @@ async function updatePersonalTierlist(interaction, modalData) {
     // Retourner le résultat à la commande appelante
     if(invalidLines.length > 0) {
         await interaction.reply({
-            content: `These ninjas aren't recognized by the bot. They have been ignored.\n${invalidLines.toString()}`,
+            content: `These ninjas aren't recognized by the bot. They have been ignored.\n${invalidLines.join(", ")}`.slice(0, 2000),
             flags: MessageFlags.Ephemeral
         });
     } else {
@@ -168,7 +170,7 @@ async function updatePersonalTierlist(interaction, modalData) {
         });
     }
 
-    await tierlistMessage(interaction.channel);
+    await tierlistMessage(await interaction.guild.channels.fetch(globals.server.channel.tierlist));
     
 }
 
@@ -196,7 +198,7 @@ async function defineTiers(type) {
             score_t5: 0,
             count: 0,
             count_t2: 0,
-            count__t5: 0
+            count_t5: 0
         };
     }
 
@@ -223,8 +225,8 @@ async function defineTiers(type) {
                 const assignedScore = scoresForThisTier[index];
                 const parts = line.split(' ');
                 let suffix = null;
-                if (parts.length > 1 && ['T2', 'T5'].includes(parts[parts.length - 1])) {
-                    suffix = parts.pop();
+                if (parts.length > 1 && ['T2', 'T5'].includes(parts[parts.length - 1].toUpperCase())) {
+                    suffix = parts.pop().toUpperCase();
                 }
                 const ninjaName = parts.join(' ').trim();
 

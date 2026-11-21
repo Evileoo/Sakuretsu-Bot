@@ -1,7 +1,10 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { db } from '../connections/database.js';
-import { nameUpdates } from '../functions/nameUpdates.js';
 import { globals } from '../globals.js';
+import { nameUpdates } from '../functions/nameUpdates.js';
+import { scheduleEmbed } from '../functions/scheduleEmbed.js';
+import { villageFlow } from '../functions/villageFlow.js';
+import { villageMembership } from '../functions/villageMembership.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -16,6 +19,7 @@ export const command = {
             .setName("value")
             .setDescription("if you village tag is in your in game name, don't write it")
             .setRequired(true)
+            .setMaxLength(50)
         )
     )
     .addSubcommand( (subcommand) =>
@@ -27,6 +31,7 @@ export const command = {
             .setName("value")
             .setDescription("Format: +7 or -11 or +0")
             .setRequired(true)
+            .setMaxLength(3)
         )
     )
     .addSubcommand( (subcommand) =>
@@ -38,24 +43,66 @@ export const command = {
             .setName("value")
             .setDescription("in game ID")
             .setRequired(true)
+            .setMaxLength(30)
         )
-    )
-    .addSubcommand( (subcommand) =>
-        subcommand
-        .setName("notebooks")
-        .setDescription("Get a list of your notebooks")
     )
     .addSubcommand( (subcommand) =>
         subcommand
         .setName("schedule")
         .setDescription("Display your schedule")
     )
+    .addSubcommandGroup( (group) =>
+        group
+        .setName("village")
+        .setDescription("Join or leave a village")
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("apply")
+            .setDescription("Ask to join a village")
+            .addStringOption( (option) =>
+                option
+                .setName("village")
+                .setDescription("Village to join, pick it from the list")
+                .setRequired(true)
+                .setAutocomplete(true)
+                .setMaxLength(4)
+            )
+            .addStringOption( (option) =>
+                option
+                .setName("message")
+                .setDescription("Message for the Kage and BroKages of the village")
+                .setRequired(false)
+                .setMaxLength(500)
+            )
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("cancel")
+            .setDescription("Cancel your pending application")
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("leave")
+            .setDescription("Leave your village")
+        )
+    )
     , async execute(interaction){
 
         // Get all command data
         const command = {
-            value: (interaction.options.getString("value")) ? interaction.options.getString("value") : null,
-            name: (interaction.options.getString("name")) ? interaction.options.getString("name") : null
+            value: interaction.options.getString("value") ?? null
+        }
+
+        if(interaction.options.getSubcommandGroup() == "village") {
+            switch(interaction.options.getSubcommand()) {
+                case "apply":
+                    return await apply(interaction);
+                case "cancel":
+                    return await cancelApplication(interaction);
+                case "leave":
+                    return await leave(interaction);
+            }
+            return;
         }
 
         switch(interaction.options.getSubcommand()){
@@ -64,9 +111,6 @@ export const command = {
             break;
             case "timezone":
                 await changeTimezone(command, interaction);
-            break;
-            case "notebooks":
-                await getNotebooks(interaction);
             break;
             case "schedule":
                 await getSchedule(interaction);
@@ -103,9 +147,9 @@ export const command = {
 
         async function changeTimezone(data, interaction) {
             // Checks
-            if(isNaN(data.value) || (data.value[0] != "-" && data.value[0] != "+") || parseFloat(data.value) < -12 || parseFloat(data.value) > +12) {
+            if(!nameUpdates.isValidTimezone(data.value)) {
                 return await interaction.reply({
-                    content: `You must provide a sign (+ or -) and then a number between 0 and 12`,
+                    content: `You must provide a sign (+ or -) and then a number between 0 and 12 (ex: +2, -11, +0)`,
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -124,79 +168,16 @@ export const command = {
             });
         }
 
-        async function getNotebooks(interaction) {
-            const notebooks = await db.getall(`SELECT name, visibility FROM notebook WHERE id = ? ORDER BY name ASC`, [interaction.user.id]);
-
-            const embed = new EmbedBuilder()
-            .setTitle(`My notebooks`)
-            .setColor(globals.embed.black);
-
-            if(notebooks.length == 0) {
-                embed.setDescription(`You don't have any notebook yet.\nCreate one with the \`/notebooks create\` command`);
-            
-                interaction.reply({
-                    embeds: [embed],
-                    flags: MessageFlags.Ephemeral
-                });
-            } else {
-                let visibility = "";
-                let name = "";
-                let tooLong = false;
-                let i;
-                for(i = 0; i < notebooks.length; i++) {
-                    visibility += (notebooks[i].visibility == 0) ? "public\n" : "private\n";
-                    name += `${notebooks[i].name}\n`;
-
-                    if(i == 10 - 1) {
-                        tooLong = true;
-                        break;
-                    }
-                }
-
-                embed.addFields(
-                    { name: `Name`, value: `${name}`, inline: true },
-                    { name: `Visibility`, value: `${visibility}`, inline: true }
-                );
-
-                const previous = new ButtonBuilder()
-                .setCustomId(`nbList${globals.separator}p${globals.separator}0`)
-                .setLabel(`Previous`)
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(true);
-
-                const next = new ButtonBuilder()
-                .setCustomId(`nbList${globals.separator}n${globals.separator}0`)
-                .setLabel(`Next`)
-                .setStyle(ButtonStyle.Secondary);
-
-                const row = new ActionRowBuilder()
-                .addComponents(previous, next);
-
-                if(tooLong) {
-                    await interaction.reply({
-                        embeds: [embed],
-                        components: [row],
-                        flags: MessageFlags.Ephemeral
-                    });
-                } else {
-                    await interaction.reply({
-                        embeds: [embed],
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-            }
-        }
-
         async function getSchedule(interaction) {
-            const member = await db.getrow(`SELECT timezone FROM member WHERE id = ?`, [interaction.user.id]);
-            
+            const member = await db.getrow(`SELECT name, timezone FROM member WHERE id = ?`, [interaction.user.id]);
+
             if(!member) {
                 return await interaction.reply({
                     content: `No schedule setup`,
                     flags: MessageFlags.Ephemeral
                 });
             }
-            
+
             const schedule = await db.getall(`SELECT day, period FROM schedule WHERE id = ?`, [interaction.user.id]);
 
             if(schedule.length == 0) {
@@ -206,82 +187,119 @@ export const command = {
                 });
             }
 
-            const now = new Date();
-            const offset = parseFloat(member.timezone);
+            await interaction.reply({
+                embeds: [scheduleEmbed.buildScheduleEmbed(member, schedule)],
+                flags: MessageFlags.Ephemeral
+            });
+        }
 
-            const scheduleTimes = [
-                { name: `Monday`, data: [] },
-                { name: `Tuesday`, data: [] },
-                { name: `Wednesday`, data: [] },
-                { name: `Thursday`, data: [] },
-                { name: `Friday`, data: [] },
-                { name: `Saturday`, data: [] },
-                { name: `Sunday`, data: [] },
-            ];
+        async function answer(content) {
+            return await interaction.reply({
+                content: content,
+                flags: MessageFlags.Ephemeral
+            });
+        }
 
-            for(const row of schedule) {
-                const start = row.period.split(" ")[0];
-                const end = row.period.split(" ")[1];
+        async function apply(interaction) {
+            const tag = interaction.options.getString("village").toUpperCase();
+            const message = interaction.options.getString("message") ?? null;
 
-                const startHour = parseInt(start.split(":")[0]) - offset;
-                const startMinute = parseInt(start.split(":")[1]);
-                const endHour = parseInt(end.split(":")[0]) - offset;
-                const endMinute = parseInt(end.split(":")[1]);
+            // Checks
+            const member = await db.getrow(`SELECT name, timezone, village_tag, ig_id FROM member WHERE id = ?`, [interaction.user.id]);
+            if(member && member.village_tag) {
+                return await answer(`You are already in a village. Leave it first with \`/my village leave\``);
+            }
 
-                const utcStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), startHour, startMinute, 0));
-                const utcEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), endHour, endMinute, 0));
+            const village = await db.getrow(`SELECT tag, name, moderation FROM village WHERE tag = ?`, [tag]);
+            if(!village) {
+                return await answer(`Unknown village, pick it from the list`);
+            }
 
-                const period = {
-                    start: utcStart,
-                    end: utcEnd
-                }
+            const pending = await db.getrow(`SELECT village_tag FROM application WHERE member_id = ?`, [interaction.user.id]);
+            if(pending) {
+                return await answer(`You already have a pending application to [${pending.village_tag}]. Cancel it with \`/my village cancel\` to apply somewhere else`);
+            }
 
-                switch(row.day) {
-                    case "Mon":
-                        scheduleTimes[0].data.push(period);
-                    break;
-                    case "Tue":
-                        scheduleTimes[1].data.push(period);
-                    break;
-                    case "Wed":
-                        scheduleTimes[2].data.push(period);
-                    break;
-                    case "Thu":
-                        scheduleTimes[3].data.push(period);
-                    break;
-                    case "Fri":
-                        scheduleTimes[4].data.push(period);
-                    break;
-                    case "Sat":
-                        scheduleTimes[5].data.push(period);
-                    break;
-                    case "Sun":
-                        scheduleTimes[6].data.push(period);
-                    break;
+            if(member && member.ig_id) {
+                const banned = await db.getrow(`SELECT 1 FROM status WHERE status = 'ban' AND village_tag = ? AND member_id = ? LIMIT 1`, [village.tag, member.ig_id]);
+                if(banned) {
+                    return await answer(`You are banned from this village`);
                 }
             }
 
-            const scheduleEmbed = new EmbedBuilder()
-            .setTitle(`${member.name}'s availibilities`)
+            const moderation = await villageFlow.fetchChannel(interaction.guild, village.moderation);
+            if(!moderation) {
+                return await answer(`This village can't receive applications for now`);
+            }
+
+            if(!member) {
+                await db.insert(`INSERT INTO member (id, name) VALUES (?, ?)`, [interaction.user.id, (interaction.member.displayName ?? interaction.user.username).slice(0, 50)]);
+            }
+
+            const applicationId = await db.insert(`INSERT INTO application (member_id, village_tag, message) VALUES (?, ?, ?)`, [interaction.user.id, village.tag, message]);
+
+            // Send the application to the Kage and BroKages
+            const embed = new EmbedBuilder()
+            .setTitle(`New application`)
+            .setDescription(`<@${interaction.user.id}> wants to join the village`)
+            .addFields(
+                { name: `In game name`, value: `${member?.name ?? interaction.member.displayName ?? interaction.user.username}`, inline: true },
+                { name: `In game ID`, value: `${member?.ig_id ?? `Not given`}`, inline: true },
+                { name: `Timezone`, value: `${member?.timezone ? `UTC${member.timezone}` : `Not given`}`, inline: true },
+                { name: `Message`, value: message ?? `No message` }
+            )
+            .setColor(globals.embed.yellow)
             .setTimestamp();
 
-            for(const day of scheduleTimes) {
-                let periods = "";
+            const accept = new ButtonBuilder()
+            .setCustomId(`villageApply${globals.separator}a${globals.separator}${applicationId}`)
+            .setLabel(`Accept`)
+            .setStyle(ButtonStyle.Success);
 
-                if(day.data.length == 0) {
-                    scheduleEmbed.addFields({ name: `${day.name}`, value: `Unknown` });
-                } else {
-                    for(const period of day.data) {
-                        if(periods.length > 0) periods += " / "
-                        periods += `<t:${period.start.getTime() / 1000}:T> to <t:${period.end.getTime() / 1000}:T>`;
-                    }
+            const deny = new ButtonBuilder()
+            .setCustomId(`villageApply${globals.separator}d${globals.separator}${applicationId}`)
+            .setLabel(`Deny`)
+            .setStyle(ButtonStyle.Danger);
 
-                    scheduleEmbed.addFields({ name: `${day.name}`, value: `${periods}` });
-                }
+            const sent = await moderation.send({
+                embeds: [embed],
+                components: [new ActionRowBuilder().addComponents(accept, deny)]
+            });
+
+            await db.update(`UPDATE application SET message_id = ? WHERE id = ?`, [sent.id, applicationId]);
+
+            return await answer(`Your application to **[${village.tag}] ${village.name}** has been sent. You will receive a private message with the answer`);
+        }
+
+        async function cancelApplication(interaction) {
+            const cancelled = await villageMembership.cancelApplications(interaction.guild, interaction.user.id, `withdrawn by the member`);
+
+            return await answer(cancelled > 0 ? `Your application has been cancelled` : `You don't have any pending application`);
+        }
+
+        async function leave(interaction) {
+            const member = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+            const village = member?.village_tag ? await db.getrow(`SELECT tag, name FROM village WHERE tag = ?`, [member.village_tag]) : null;
+
+            if(!village) {
+                return await answer(`You are not in a village`);
             }
 
-            await interaction.reply({
-                embeds: [scheduleEmbed],
+            const isKage = interaction.member.roles.cache.has(globals.server.role.kage);
+
+            const confirm = new ButtonBuilder()
+            .setCustomId(`villageLeave${globals.separator}y${globals.separator}${village.tag}`)
+            .setLabel(`Leave the village`)
+            .setStyle(ButtonStyle.Danger);
+
+            const cancel = new ButtonBuilder()
+            .setCustomId(`villageLeave${globals.separator}n${globals.separator}${village.tag}`)
+            .setLabel(`Stay`)
+            .setStyle(ButtonStyle.Secondary);
+
+            return await interaction.reply({
+                content: `Do you really want to leave **[${village.tag}] ${village.name}** ?${isKage ? `\nYou are the Kage : the BroKage who has been in the server for the longest time will become Kage.` : ``}`,
+                components: [new ActionRowBuilder().addComponents(confirm, cancel)],
                 flags: MessageFlags.Ephemeral
             });
         }
