@@ -4,6 +4,7 @@ import { db } from '../connections/database.js';
 import { mb } from '../functions/missionBoard.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
 import { tierlist } from '../functions/tierlist.js';
+import { villageVisit } from '../functions/villageVisit.js';
 import { globals } from '../globals.js';
 
 // Executed when bot is ready
@@ -65,6 +66,9 @@ export const event = {
 
         // Load name update routine
         nameUpdates.updateRoutine(client);
+
+        // End the moderator visits of villages when their time is over
+        villageVisit.routine(client);
 
         // Refresh tierlist
         tierlist.tierlistMessage(await guild.channels.fetch(globals.server.channel.tierlist));

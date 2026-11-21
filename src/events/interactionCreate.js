@@ -62,8 +62,8 @@ export const event = {
 			const subcommand = `${group && interaction.commandName != `mod` ? `${group} ` : ``}${interaction.options.getSubcommand(false)}`;
 			const autocompleteRoutes = {
 				event: { add: `getEventName`, remove: `getEventName`, data: `getEventName`, calendar: `getEventName` },
-				village: { delete: `getVillageTag`, unban: `getMemberFromStatus`, sanctions: `getMemberFromStatus`, "tac create": `getVillageTag`, "tac delete": `getTacChannel` },
-				mod: { change: `getVillageTag` },
+				village: { delete: `getVillageTag`, unban: `getMemberFromStatus`, sanctions: `getMemberFromStatus`, "tac create": `getVillageTag`, "tac delete": `getTacChannel`, members: `getVillageTag`, "list edit": `getVillageList`, "list remove": `getVillageList`, "list delete": `getVillageList` },
+				mod: { change: `getVillageTag`, visit: `getVillageTag`, leave: `getVisitedVillage` },
 				my: { "village apply": `getVillageTag` }
 			};
 

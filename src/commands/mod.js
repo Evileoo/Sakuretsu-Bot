@@ -4,6 +4,7 @@ import { globals } from '../globals.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
 import { villageFlow } from '../functions/villageFlow.js';
 import { villageMembership } from '../functions/villageMembership.js';
+import { villageVisit } from '../functions/villageVisit.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -72,6 +73,37 @@ export const command = {
                 .setRequired(true)
             )
         )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("visit")
+            .setDescription("See and write in all the channels of a village for some time, to help it")
+            .addStringOption( (option) =>
+                option
+                .setName("village")
+                .setDescription("village to visit")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addIntegerOption( (option) =>
+                option
+                .setName("hours")
+                .setDescription("duration of the visit in hours (default: 24, max: 168)")
+                .setMinValue(1)
+                .setMaxValue(168)
+            )
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("leave")
+            .setDescription("End your visit of a village")
+            .addStringOption( (option) =>
+                option
+                .setName("village")
+                .setDescription("village you are visiting")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
     )
     , async execute(interaction){
 
@@ -91,6 +123,12 @@ export const command = {
                     break;
                     case "subkage":
                         await changePosition(interaction, command);
+                    break;
+                    case "visit":
+                        await visitVillage(interaction, command);
+                    break;
+                    case "leave":
+                        await leaveVisit(interaction, command);
                     break;
                     default:
                     break;
@@ -285,6 +323,50 @@ export const command = {
 
             // Send flow message
             await villageFlow.sendLog(interaction.guild, village, village.flow_promote, { embeds: [flowEmbed] });
+        }
+
+        async function visitVillage(interaction, params) {
+            // Checks (it gives access to private channels: not only the default permission of the command)
+            if(!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
+                return await interaction.reply({ content: `You don't have permissions to execute this command`, flags: MessageFlags.Ephemeral });
+            }
+
+            const village = await db.getrow(`SELECT tag, name, category, flow, moderation FROM village WHERE tag = ?`, [params.village]);
+            if(!village) {
+                return await interaction.reply({ content: `Unknown village, pick it from the list`, flags: MessageFlags.Ephemeral });
+            }
+
+            const member = await db.getrow(`SELECT village_tag FROM member WHERE id = ?`, [interaction.user.id]);
+            if(member?.village_tag == village.tag) {
+                return await interaction.reply({ content: `You are already in this village`, flags: MessageFlags.Ephemeral });
+            }
+
+            if(!await villageFlow.fetchChannel(interaction.guild, village.category)) {
+                return await interaction.reply({ content: `The category of this village couldn't be found`, flags: MessageFlags.Ephemeral });
+            }
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            const visit = await villageVisit.start(interaction.guild, village, interaction.user.id, interaction.options.getInteger("hours") ?? 24);
+
+            await interaction.editReply({
+                content: visit.extended
+                    ? `Your visit of [${village.tag}] ${village.name} is extended until <t:${visit.end}:f>`
+                    : `You can see the channels of [${village.tag}] ${village.name} until <t:${visit.end}:f>. End it before with \`/mod village leave\``
+            });
+        }
+
+        async function leaveVisit(interaction, params) {
+            const visit = await db.getrow(`SELECT * FROM village_visit WHERE village_tag = ? AND member_id = ?`, [params.village, interaction.user.id]);
+            if(!visit) {
+                return await interaction.reply({ content: `You are not visiting this village, pick it from the list`, flags: MessageFlags.Ephemeral });
+            }
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            await villageVisit.end(interaction.guild, visit, `left`);
+
+            await interaction.editReply({ content: `Visit of [${visit.village_tag}] ended` });
         }
     }
 }

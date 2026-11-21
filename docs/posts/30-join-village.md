@@ -12,6 +12,7 @@ A Kage can also invite you: the invitation appears in {{channel:villages}}. Clic
 
 ## In the village
 You get the role of the village, access to its channels, and its tag in your nickname.
+For the events of the village, your Kage can post registration lists: click **Join** to register. If the list is full, you go in the waiting list and the bot pings you when a place frees up.
 
 ## Leave your village — {{cmd:my village leave}}
 Confirm with the button. You get the {{role:lone}} role back.

@@ -85,4 +85,29 @@ async function promoteSuccessor(guild, village, formerKageId) {
     return successor;
 }
 
-export const villageMembership = { notify, closeApplicationMessage, cancelApplications, addToVillage, promoteSuccessor };
+// Lines of the members list of a village (/village members): Kage, BroKages, then the members, by name.
+// rows: member table rows of the village. guildMembers: Map id => guild member, for the members still in the server
+function memberLines(rows, guildMembers) {
+    const rank = (id) => {
+        const member = guildMembers.get(id);
+        if(!member) return 3;
+        if(member.roles.cache.has(globals.server.role.kage)) return 0;
+        if(member.roles.cache.has(globals.server.role.sub)) return 1;
+        return 2;
+    };
+    const name = (row) => row.name ?? guildMembers.get(row.id)?.displayName ?? row.id;
+
+    return [...rows]
+    .sort((a, b) => rank(a.id) - rank(b.id) || name(a).localeCompare(name(b), undefined, { sensitivity: `base` }))
+    .map(row => {
+        const details = [
+            row.ig_id ? `ID \`${row.ig_id}\`` : null,
+            row.timezone ? `UTC${row.timezone}` : null
+        ].filter(Boolean);
+
+        if(!guildMembers.has(row.id)) return `❌ ~~${name(row)}~~ <@${row.id}> · left the server`;
+        return `${[`👑`, `🛡️`, `👤`][rank(row.id)]} **${name(row)}** <@${row.id}>${details.length ? ` · ${details.join(` · `)}` : ``}`;
+    });
+}
+
+export const villageMembership = { notify, closeApplicationMessage, cancelApplications, addToVillage, promoteSuccessor, memberLines };

@@ -5,6 +5,8 @@ import { lists } from '../functions/lists.js';
 import { villageFlow } from '../functions/villageFlow.js';
 import { nameUpdates } from '../functions/nameUpdates.js';
 import { docs } from '../functions/docs.js';
+import { villageLists } from '../functions/villageLists.js';
+import { villageMembership } from '../functions/villageMembership.js';
 
 export const command = {
     data: new SlashCommandBuilder()
@@ -238,6 +240,114 @@ export const command = {
         .setName("ping")
         .setDescription("ping your village")
     )
+    .addSubcommand( (subcommand) =>
+        subcommand
+        .setName("members")
+        .setDescription("List of the members of your village")
+        .addStringOption( (option) =>
+            option
+            .setName("village")
+            .setDescription("|MOD ONLY| village to list, pick it from the list")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommandGroup( (group) =>
+        group
+        .setName("list")
+        .setDescription("Registration lists of your village events, with a waiting list")
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("create")
+            .setDescription("|KAGE & BROKAGE ONLY| Post a registration list in this channel")
+            .addStringOption( (option) =>
+                option
+                .setName("title")
+                .setDescription("Name of the event")
+                .setRequired(true)
+                .setMaxLength(100)
+            )
+            .addIntegerOption( (option) =>
+                option
+                .setName("slots")
+                .setDescription("Number of places, the next members go in the waiting list (default: no limit)")
+                .setRequired(false)
+                .setMinValue(1)
+                .setMaxValue(200)
+            )
+            .addStringOption( (option) =>
+                option
+                .setName("description")
+                .setDescription("Details of the event (date, rules…)")
+                .setRequired(false)
+                .setMaxLength(1000)
+            )
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("edit")
+            .setDescription("|KAGE & BROKAGE ONLY| Edit a registration list")
+            .addStringOption( (option) =>
+                option
+                .setName("list")
+                .setDescription("Pick the list")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption( (option) =>
+                option
+                .setName("title")
+                .setDescription("New name of the event")
+                .setRequired(false)
+                .setMaxLength(100)
+            )
+            .addIntegerOption( (option) =>
+                option
+                .setName("slots")
+                .setDescription("New number of places (0: no limit)")
+                .setRequired(false)
+                .setMinValue(0)
+                .setMaxValue(200)
+            )
+            .addStringOption( (option) =>
+                option
+                .setName("description")
+                .setDescription("New details of the event (\"-\" to remove them)")
+                .setRequired(false)
+                .setMaxLength(1000)
+            )
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("remove")
+            .setDescription("|KAGE & BROKAGE ONLY| Remove a member from a registration list")
+            .addStringOption( (option) =>
+                option
+                .setName("list")
+                .setDescription("Pick the list")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addUserOption( (option) =>
+                option
+                .setName("member")
+                .setDescription("Member to remove")
+                .setRequired(true)
+            )
+        )
+        .addSubcommand( (subcommand) =>
+            subcommand
+            .setName("delete")
+            .setDescription("|KAGE & BROKAGE ONLY| Delete a registration list and its message")
+            .addStringOption( (option) =>
+                option
+                .setName("list")
+                .setDescription("Pick the list")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+    )
     .addSubcommandGroup( (group) =>
         group
         .setName("tac")
@@ -332,6 +442,20 @@ export const command = {
             return;
         }
 
+        if(interaction.options.getSubcommandGroup() == "list") {
+            switch(interaction.options.getSubcommand()) {
+                case "create":
+                    return await listCreate(interaction);
+                case "edit":
+                    return await listEdit(interaction);
+                case "remove":
+                    return await listRemove(interaction);
+                case "delete":
+                    return await listDelete(interaction);
+            }
+            return;
+        }
+
         switch(interaction.options.getSubcommand()) {
             case "create":
                 await createVillage(data, interaction);
@@ -370,6 +494,9 @@ export const command = {
             break;
             case "ping":
                 await ping(interaction);
+            break;
+            case "members":
+                await members(interaction);
             break;
             default:
             break;
@@ -429,24 +556,11 @@ export const command = {
                 reason: `${data.tag} ${data.name}`
             });
 
-            // Create the category
+            // Create the category: visible by the village, managed by the Kage and the BroKages (see villageFlow)
             const category = await interaction.guild.channels.create({
                 name: `${data.name}`,
                 type: ChannelType.GuildCategory,
-                permissionOverwrites: [
-                    {
-                        id: interaction.guild.roles.everyone.id,
-                        deny: [
-                            PermissionsBitField.Flags.ViewChannel
-                        ]
-                    },
-                    {
-                        id: role.id,
-                        allow: [
-                            PermissionsBitField.Flags.ViewChannel
-                        ]
-                    }
-                ]
+                permissionOverwrites: villageFlow.categoryOverwrites(interaction.guild, { role_id: role.id })
             });
 
             // Create the channels
@@ -501,6 +615,11 @@ export const command = {
                 await moderation.permissionOverwrites.edit(data.kage.id, {
                     ViewChannel: true
                 });
+            }
+
+            // The Kage and the BroKages can't edit or delete the channels made by the bot
+            for(const channel of [flow, rules, announcements, general, moderation]) {
+                await villageFlow.protectChannel(channel);
             }
 
             // Edit Kage roles
@@ -616,6 +735,8 @@ export const command = {
                     await children.delete();
                 }
 
+                // Not a category deleted by a Kage: it must not be created again
+                villageFlow.expectCategoryDelete(category.id);
                 await category.delete();
             }
 
@@ -645,6 +766,8 @@ export const command = {
             // Pending applications and Tri-Army Clash channels access (the role overwrites are removed with the role)
             await db.delete(`DELETE FROM application WHERE village_tag = ?`, [village.tag]);
             await db.delete(`DELETE FROM tac_village WHERE village_tag = ?`, [village.tag]);
+            await db.delete(`DELETE FROM village_visit WHERE village_tag = ?`, [village.tag]);
+            await villageLists.deleteVillageLists(village.tag);
 
             // Delete village from database
             await db.delete(`DELETE FROM village WHERE tag = ?`, [village.tag]);
@@ -694,6 +817,8 @@ export const command = {
             await db.update(`UPDATE application SET village_tag = ? WHERE village_tag = ?`, [data.tag, village.tag]);
             await db.update(`UPDATE tac_village SET village_tag = ? WHERE village_tag = ?`, [data.tag, village.tag]);
             await db.update(`UPDATE tac_channel SET creator_tag = ? WHERE creator_tag = ?`, [data.tag, village.tag]);
+            await db.update(`UPDATE village_visit SET village_tag = ? WHERE village_tag = ?`, [data.tag, village.tag]);
+            await db.update(`UPDATE village_list SET village_tag = ? WHERE village_tag = ?`, [data.tag, village.tag]);
 
             // Update the village tag in members names
             if(data.tag != village.tag) {
@@ -1140,6 +1265,161 @@ export const command = {
 
             const channel = await villageFlow.fetchChannel(interaction.guild, tac.id);
             if(channel) await channel.delete();
+        }
+
+        async function members(interaction) {
+            // Moderators can list any village, the others their own village
+            const tag = interaction.options.getString("village");
+            const isModerator = interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers);
+
+            let village;
+            if(tag && isModerator) {
+                village = await db.getrow(`SELECT tag, name FROM village WHERE tag = ?`, [tag]);
+                if(!village) return await answer(interaction, `Unknown village, pick it from the list`);
+            } else {
+                const executorVillage = await getExecutorVillage(interaction, `tag, name`);
+                if(!executorVillage) return await answer(interaction, `You are not in a village`);
+                village = executorVillage.village;
+            }
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            const rows = await db.getall(`SELECT id, name, timezone, ig_id FROM member WHERE village_tag = ?`, [village.tag]);
+            const guildMembers = new Map();
+            for(const row of rows) {
+                const member = await villageFlow.fetchMember(interaction.guild, row.id);
+                if(member) guildMembers.set(row.id, member);
+            }
+
+            const lines = villageMembership.memberLines(rows, guildMembers);
+            const ranks = [...guildMembers.values()];
+            const summary = `${rows.length} member${rows.length > 1 ? `s` : ``} · ${ranks.filter(m => m.roles.cache.has(globals.server.role.sub) && !m.roles.cache.has(globals.server.role.kage)).length} BroKage(s)${rows.length > guildMembers.size ? ` · ${rows.length - guildMembers.size} left the server` : ``}`;
+
+            // Embeds of 4000 characters at most, sent in several messages if needed
+            const pages = [];
+            let page = ``;
+            for(const line of lines.length ? lines : [`*No member*`]) {
+                if(page.length + line.length + 1 > 4000) {
+                    pages.push(page);
+                    page = ``;
+                }
+                page += `${line}\n`;
+            }
+            pages.push(page);
+
+            for(let i = 0; i < pages.length; i++) {
+                const embed = new EmbedBuilder()
+                .setTitle(`Members of [${village.tag}] ${village.name}${pages.length > 1 ? ` (${i + 1}/${pages.length})` : ``}`)
+                .setDescription(pages[i])
+                .setColor(globals.embed.white)
+                .setFooter({ text: summary });
+
+                if(i == 0) await interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
+                else await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+            }
+        }
+
+        // The village of the executor if he is its Kage or a BroKage, otherwise answers and returns null
+        async function getRankVillage(interaction, columns) {
+            const executorVillage = await getExecutorVillage(interaction, columns);
+            if(!executorVillage) {
+                await answer(interaction, `You are not in a village`);
+                return null;
+            }
+            if(!interaction.member.roles.cache.has(globals.server.role.sub) && !interaction.member.roles.cache.has(globals.server.role.kage)) {
+                await answer(interaction, `Only the Kage and the BroKages can manage the registration lists`);
+                return null;
+            }
+            return executorVillage.village;
+        }
+
+        // A list of the village of the executor, otherwise answers and returns null
+        async function getVillageList(interaction, village) {
+            const list = await db.getrow(`SELECT * FROM village_list WHERE id = ? AND village_tag = ?`, [interaction.options.getString("list"), village.tag]);
+            if(!list) await answer(interaction, `Unknown list, pick it from the list`);
+            return list;
+        }
+
+        async function listCreate(interaction) {
+            const village = await getRankVillage(interaction, `tag, category`);
+            if(!village) return;
+
+            // Only the village can see the list: it must be in a channel of the village
+            if(!interaction.channel || interaction.channel.parentId != village.category) {
+                return await answer(interaction, `Use this command in a channel of your village`);
+            }
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            try {
+                await villageLists.create(interaction.channel, village, interaction.user.id, {
+                    title: interaction.options.getString("title"),
+                    slots: interaction.options.getInteger("slots"),
+                    description: interaction.options.getString("description")
+                });
+            } catch(error) {
+                console.error(error);
+                return await interaction.editReply({ content: `The list couldn't be posted in this channel` });
+            }
+
+            await interaction.editReply({ content: `List created. Close it with its button, edit it with \`/village list edit\`` });
+        }
+
+        async function listEdit(interaction) {
+            const village = await getRankVillage(interaction, `tag`);
+            if(!village) return;
+            const list = await getVillageList(interaction, village);
+            if(!list) return;
+
+            const title = interaction.options.getString("title");
+            const slots = interaction.options.getInteger("slots");
+            const description = interaction.options.getString("description");
+            if(title == null && slots == null && description == null) {
+                return await answer(interaction, `Give the title, the number of places or the description to change`);
+            }
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            const before = await villageLists.registeredIds(list);
+            if(title != null) list.title = title;
+            if(slots != null) list.slots = slots == 0 ? null : slots;
+            if(description != null) list.description = description.trim() == `-` ? null : description;
+            await db.update(`UPDATE village_list SET title = ?, slots = ?, description = ? WHERE id = ?`, [list.title, list.slots, list.description, list.id]);
+
+            // More places: the first ones of the waiting list get them, with a ping
+            await villageLists.refresh(interaction.guild, list, before);
+
+            await interaction.editReply({ content: `List edited` });
+        }
+
+        async function listRemove(interaction) {
+            const village = await getRankVillage(interaction, `tag`);
+            if(!village) return;
+            const list = await getVillageList(interaction, village);
+            if(!list) return;
+
+            const before = await villageLists.registeredIds(list);
+            const removed = await db.delete(`DELETE FROM village_list_member WHERE list_id = ? AND member_id = ?`, [list.id, data.member.id]);
+            if(!removed) return await answer(interaction, `This member is not in the list`);
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            await villageLists.refresh(interaction.guild, list, before);
+            await interaction.editReply({ content: `<@${data.member.id}> removed from **${list.title}**`, allowedMentions: { parse: [] } });
+        }
+
+        async function listDelete(interaction) {
+            const village = await getRankVillage(interaction, `tag`);
+            if(!village) return;
+            const list = await getVillageList(interaction, village);
+            if(!list) return;
+
+            await answer(interaction, `List **${list.title}** deleted`);
+
+            const listMessage = await villageLists.fetchMessage(interaction.guild, list);
+            if(listMessage) await listMessage.delete().catch(() => null);
+
+            await db.delete(`DELETE FROM village_list_member WHERE list_id = ?`, [list.id]);
+            await db.delete(`DELETE FROM village_list WHERE id = ?`, [list.id]);
         }
 
         async function ping(interaction) {
