@@ -1,7 +1,25 @@
+// Dev mode, only on the developer's computer: DEVMODE=true in its .env (never in the .env of the prod server).
+// The bot then works in the channels of the private "🧪 claude-tests" category instead of the real ones,
+// and never pings roles (members mentions still work).
+// Without the variable the bot is in prod mode: nothing has to be switched by hand before a deployment.
+const devMode = process.env.DEVMODE == `true`;
+
+// Channels replaced by the ones of the test category in dev mode
+const devChannels = {
+    missionBoard: `1573650148519706726`, // experimental-board
+    bloodClash: `1573650151409721384`, // bc-dev
+    bcHelp: `1573650154299326514`, // bc-helper-dev
+    bcCategory: `1573639980964913162`, // 🧪 claude-tests
+    docs: `1573673044117954671`, // bot-docs
+    tacCategory: `1573639980964913162` // 🧪 claude-tests
+};
+
+if(devMode) console.log(`[Dev mode] Test channels used, roles are never pinged`);
+
 export const globals = {
-    // Test mode: the bot never pings roles (members mentions still work).
-    // Set it to false when switching the dev channels (bloodclash.js, missionBoard.js, event.js) back to the prod ones
-    testMode: true,
+    devMode: devMode,
+    // Test mode: the bot never pings roles (members mentions still work)
+    testMode: devMode,
     separator: `|||`,
     developer: {
         discord: {
@@ -19,14 +37,20 @@ export const globals = {
             general: `1478130580712460480`,
             villages: `1504080991273091143`,
             bloodClash: `1528779829686702250`,
-            bcHelp: `1530881093593464902`,
+            // 🤝・bc-helper: help requests list + helper commands
+            bcHelp: `1551178331603603546`,
+            // Category of the channels where Blood Clash help requests are filtered (server general)
+            bcCategory: `1478130471585054893`,
+            // Category of the helpers' lobbies (same in dev mode)
+            bcLobbies: `1533555957009879211`,
             automod: `1542981838849577073`,
             tierlist: `1551315395410006196`,
             starboard: `1559211027235737680`,
             // Documentation forum (docs/posts, published with "npm run docs"), to create when the bot goes to prod
             docs: ``,
             // Category of the Tri-Army Clash shared channels. Empty: the bot uses (or creates) the "⚔️ Tri-Army Clash" category
-            tacCategory: ``
+            tacCategory: ``,
+            ...(devMode ? devChannels : {})
         },
         role: {
             mod: `1483148976101396480`,

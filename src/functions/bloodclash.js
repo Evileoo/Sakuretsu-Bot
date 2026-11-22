@@ -20,8 +20,7 @@ async function getBcEventData() {
 async function deleteBcMessage(guild, messageId) {
     if(!messageId) return;
 
-    //const bcChannel = await guild.channels.fetch(globals.server.channel.bloodClash);
-    const bcChannel = await guild.channels.fetch("1573650151409721384").catch(() => null);
+    const bcChannel = await guild.channels.fetch(globals.server.channel.bloodClash).catch(() => null);
     if(bcChannel) await bcChannel.messages.delete(messageId).catch(() => null);
 }
 
@@ -34,15 +33,12 @@ async function filter(message) {
     const channel = message.channel;
 
     // Define which filter to apply
-    //const ignore = channel.parentId != "1478130471585054893" && channel.parentId != "1509429572830236843";
-    const ignore = channel.parentId != "1573639980964913162" && channel.parentId != "1533555957009879211";
+    const ignore = channel.parentId != globals.server.channel.bcCategory && channel.parentId != globals.server.channel.bcLobbies;
     if(ignore) return;
-    
-    //if(channel.id == globals.server.channel.bloodClash) {
-    if(channel.id == "1573650151409721384") {
+
+    if(channel.id == globals.server.channel.bloodClash) {
         await inBcChannel(message);
-    //} else if(channel.id == globals.server.channel.bcHelp) {
-    } else if(channel.id == "1573650154299326514" || channel.parentId == "1533555957009879211") {
+    } else if(channel.id == globals.server.channel.bcHelp || channel.parentId == globals.server.channel.bcLobbies) {
         await inHelperChannel(message)
     } else {
         await notInBcChannel(message);
@@ -247,8 +243,7 @@ async function inHelperChannel(message) {
     await updateList(message.guild);
 
     // Delete the command message
-    //if(deleteMessage || channel.id == globals.server.channel.bcHelp) await delayedMessageDelete(message, 10000);
-    if(deleteMessage || (message && message.channel && message.channel.id == "1573650154299326514")) await delayedMessageDelete(message, 10000);
+    if(deleteMessage || message.channel.id == globals.server.channel.bcHelp) await delayedMessageDelete(message, 10000);
 }
 
 async function setMaxFloor(message) {
@@ -433,7 +428,7 @@ async function help(message) {
         channel = await message.guild.channels.create({
             name: `${helper.name} lobby`,
             type: ChannelType.GuildText,
-            parent: "1533555957009879211"
+            parent: globals.server.channel.bcLobbies
         });
         await channel.permissionOverwrites.edit(helper.id, {
             ViewChannel: true
@@ -704,7 +699,7 @@ async function lOpen(message) {
         channel = await message.guild.channels.create({
             name: `${helper.name} lobby`,
             type: ChannelType.GuildText,
-            parent: "1533555957009879211"
+            parent: globals.server.channel.bcLobbies
         });
         await channel.permissionOverwrites.edit(message.author.id, {
             ViewChannel: true
@@ -729,8 +724,7 @@ async function lOpen(message) {
     }
 
     // Send a message in bc channel
-    //const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
-    const bcChannel = await message.guild.channels.fetch("1573650151409721384");
+    const bcChannel = await message.guild.channels.fetch(globals.server.channel.bloodClash);
 
     const joinButton = new ButtonBuilder()
     .setCustomId(`bcLobby${globals.separator}j${globals.separator}${message.author.id}`)
@@ -1065,8 +1059,7 @@ async function updateList(guild) {
     };
 
     // Delete all the messages in the channel
-    //const channel = await guild.channels.fetch(globals.server.channel.bcHelp);
-    const channel = await guild.channels.fetch("1573650154299326514");
+    const channel = await guild.channels.fetch(globals.server.channel.bcHelp);
     const fetchedMessages = await channel.messages.fetch({ limit: 100 });
 
     if (fetchedMessages.size == 0) {

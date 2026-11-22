@@ -19,8 +19,7 @@ function toSqlDate(date) {
 
 async function getMissionBoardChannel(client) {
     const guild = await client.guilds.fetch(`${globals.server.id}`);
-    //return await guild.channels.fetch(globals.server.channel.missionBoard);
-    return await guild.channels.fetch(`1573650148519706726`);
+    return await guild.channels.fetch(globals.server.channel.missionBoard);
 }
 
 async function missionBoard(client) {
@@ -124,8 +123,7 @@ async function startMessage(client, event, missionBoardChannel) {
 
         const guild = await client.guilds.fetch(globals.server.id)
 
-        //const channel = await guild.channels.fetch(globals.server.channel.bloodClash);
-        const channel = await guild.channels.fetch("1573650151409721384");
+        const channel = await guild.channels.fetch(globals.server.channel.bloodClash);
 
         // Suppression des salons d'aide
         const lobbies = await db.getall(`SELECT id, message FROM lobby`);

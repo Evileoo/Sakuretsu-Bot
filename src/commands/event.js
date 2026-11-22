@@ -188,8 +188,7 @@ export const command = {
         };
 
         // Get the mission board channel
-        //const channel = await interaction.guild.channels.fetch(globals.server.channel.missionBoard);
-        const channel = await interaction.guild.channels.fetch("1573650148519706726");
+        const channel = await interaction.guild.channels.fetch(globals.server.channel.missionBoard);
 
         switch(interaction.options.getSubcommand()){
             case "add":

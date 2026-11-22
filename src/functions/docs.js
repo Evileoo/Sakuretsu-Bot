@@ -6,8 +6,7 @@ const publishedFile = new URL('../../docs/published.json', import.meta.url);
 
 // Id of the post of a documentation file (file name without its number, ex: "schedule"), or null
 function threadId(slug) {
-    //const forumId = globals.server.channel.docs;
-    const forumId = "1573673044117954671";
+    const forumId = globals.server.channel.docs;
 
     try {
         // Read at each call: republishing the documentation doesn't need a restart of the bot

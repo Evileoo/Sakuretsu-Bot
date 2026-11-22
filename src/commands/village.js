@@ -1149,8 +1149,7 @@ export const command = {
 
         // Category of the Tri-Army Clash channels
         async function getTacCategory(guild) {
-            //const categoryId = globals.server.channel.tacCategory;
-            const categoryId = "1573639980964913162";
+            const categoryId = globals.server.channel.tacCategory;
             const categoryName = `⚔️ Tri-Army Clash`;
 
             if(categoryId) {
